@@ -19,6 +19,12 @@ function validPort(value) {
     return Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : null;
 }
 
+// 0 means no limit.
+function validLimit(value) {
+    const limit = Number(value);
+    return Number.isInteger(limit) && limit >= 0 && limit <= 1000000 ? limit : null;
+}
+
 function validToken(value) {
     return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value) ? value : null;
 }
@@ -41,6 +47,7 @@ class McpConfigStore {
         this.config = {
             enabled: parsed.enabled === true,
             port: validPort(parsed.port) || DEFAULT_MCP_PORT,
+            dailyImageLimit: validLimit(parsed.dailyImageLimit) ?? 0,
             token: token || newToken()
         };
         // The token must not change between launches, or every client config breaks.
@@ -61,6 +68,7 @@ class McpConfigStore {
         await this.load();
         if (updates.enabled != null) this.config.enabled = updates.enabled === true;
         if (updates.port != null) this.config.port = validPort(updates.port) || this.config.port;
+        if (updates.dailyImageLimit != null) this.config.dailyImageLimit = validLimit(updates.dailyImageLimit) ?? this.config.dailyImageLimit;
         if (updates.regenerateToken === true) this.config.token = newToken();
         await this.save();
         return { ...this.config };

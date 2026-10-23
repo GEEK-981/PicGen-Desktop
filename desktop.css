@@ -2830,3 +2830,8 @@ textarea:focus {
     color: var(--warning);
     font-size: 12px;
 }
+
+#mcpSettingsPanel .mcp-usage-line {
+    color: var(--muted);
+    font-size: 12px;
+}

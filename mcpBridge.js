@@ -5,6 +5,7 @@ const path = require('path');
 const { toolResult, toolError, imageContent } = require('./mcpServer');
 const { sniffImageExtension, MIME_BY_EXTENSION } = require('./imageSniff');
 const rendererUtils = require('./rendererUtils');
+const generationSettings = require('./generationSettings');
 
 // Paths and bytes from an agent are only ever handled as images: anything whose
 // header is not an image is refused, so these tools cannot read a key file or
@@ -14,9 +15,9 @@ const MAX_IMAGE_BYTES = 64 * 1024 * 1024;
 
 function createMcpBridge(deps) {
     return {
-        async call(name, args) {
+        async call(name, args, context = {}) {
             try {
-                const payload = await dispatch(name, args || {}, deps);
+                const payload = await dispatch(name, args || {}, deps, context);
                 if (payload && payload._raw) return { content: payload.content };
                 return toolResult(payload);
             } catch (error) {
@@ -26,9 +27,12 @@ function createMcpBridge(deps) {
     };
 }
 
-async function dispatch(name, args, deps) {
+async function dispatch(name, args, deps, context = {}) {
     switch (name) {
         case 'picgen_status': return status(deps);
+        case 'picgen_generate_batch': return generateBatch(args, deps, context);
+        case 'picgen_wait_tasks': return waitTasks(args, deps);
+        case 'picgen_cancel_my_tasks': return { cancelled: deps.runtime.taskQueue.cancelBySequence(agentSequence(context).id) };
         case 'picgen_list_suppliers': return listSuppliers(args, deps);
         case 'picgen_list_models': return listModels(deps);
         case 'picgen_test_provider': return testProvider(args, deps);
@@ -90,7 +94,8 @@ async function status(deps) {
         routing: { strategy: routing.strategy, maxGlobalConcurrent: routing.maxGlobalConcurrent },
         supplierCount: suppliers.length,
         queuedTasks: tasks.filter(task => task.status === 'pending' || task.status === 'running').length,
-        historyCount: history.length
+        historyCount: history.length,
+        dailyQuota: await deps.quota.usage(await deps.getDailyLimit())
     };
 }
 
@@ -122,9 +127,11 @@ function publicGroup(group) {
 
 async function listModels(deps) {
     const providers = await deps.runtime.providerStore.list();
+    const fixedGroupId = await fixedRoutingGroup(deps);
     const models = [];
     for (const provider of providers) {
         if (provider.enabled === false) continue;
+        if (fixedGroupId && provider.id !== fixedGroupId) continue;
         for (const model of provider.models || []) {
             const profile = deps.imageProfiles.getImageApiProfile(model);
             models.push({
@@ -282,11 +289,10 @@ async function generate(args, deps) {
     const prompt = rendererUtils.resolvePromptMentions(rawPrompt, sequenceReferences).trim();
     if (!prompt) throw new Error('序列没有提示词');
     const count = clampCount(args.count ?? sequence.count);
+    if (!sequence.model) throw new Error('序列没有选择模型');
     const providers = await deps.runtime.providerStore.list();
-    const provider = providers.find(item => item.id === sequence.providerId);
-    if (!provider || provider.enabled === false) throw new Error('序列选择的生图配置组不存在或已停用，先用 picgen_update_sequence 换一个配置组');
-    const model = sequence.model || '';
-    if (!model) throw new Error('序列没有选择模型');
+    const fixedGroupId = await fixedRoutingGroup(deps);
+    const { group: provider, model } = pickGroupAndModel({ groupId: sequence.providerId, model: sequence.model }, providers, null, fixedGroupId);
     const references = [];
     for (const reference of sequenceReferences) {
         if (!reference.filePath) throw new Error(`参考图「${reference.alias || reference.name || reference.id}」没有本地文件，移除后重新添加`);
@@ -295,30 +301,280 @@ async function generate(args, deps) {
     }
     const profile = deps.imageProfiles.getImageApiProfile(model);
     if (references.length > profile.maxReferences) throw new Error(`当前模型最多支持 ${profile.maxReferences} 张参考图`);
-    // Advanced settings and the size tier come from the UI's own builders, so an
-    // agent's request carries exactly what the generate button would send.
-    const settings = await mutateSequence('generation-settings', { sequenceId: sequence.id }, deps);
-    const response = await fetch(`${deps.serverUrl}/api/tasks/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            sequenceId: sequence.id,
-            sequenceName: sequence.name,
-            count,
-            providerId: provider.id,
-            providerName: provider.name,
-            model,
-            operation: 'generate',
-            prompt,
-            ratio: sequence.ratio || '1:1',
-            imageSize: settings.imageSize,
-            referenceImages: references,
-            generationConfig: settings.generationConfig
-        })
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || '入队失败');
-    return { taskIds: result.taskIds, sequenceId: sequence.id, model, count };
+    const limit = await deps.getDailyLimit();
+    await deps.quota.reserve(count, limit);
+    const submitted = await submitTasks(deps, {
+        sequenceId: sequence.id,
+        sequenceName: sequence.name,
+        count,
+        providerId: provider.id,
+        providerName: provider.name,
+        model,
+        operation: 'generate',
+        prompt,
+        ratio: sequence.ratio || '1:1',
+        imageSize: generationSettings.resolveImageSize(model, sequence.imageSize, deps.imageProfiles),
+        referenceImages: references,
+        generationConfig: generationSettings.buildGenerationConfig({ model, advanced: sequence.advanced }, deps.imageProfiles)
+    }, sequence.id);
+    if (submitted.submitted === false) { await settle(() => deps.quota.refund(count)); throw new Error(submitted.error); }
+    if (submitted.submitted !== true) throw new Error(submitted.error);
+    return { taskIds: submitted.taskIds, sequenceId: sequence.id, ...actualRoute(deps, submitted.taskIds, provider.id, model), count };
+}
+
+// Never "send it again": the agent cannot know whether the first one was queued.
+function unconfirmed(sequenceId, detail = '') {
+    return `提交结果未确认：请求可能已经入队并计费。不要重发；用 picgen_list_tasks（sequenceId=${sequenceId}）核对是否已入队${detail ? `（${detail}）` : ''}`;
+}
+
+// submitted: true (queued), false (refused, nothing billed) or 'unknown' (the
+// request may have reached the queue; never retried automatically).
+async function submitTasks(deps, body, sequenceId) {
+    let response;
+    try {
+        response = await fetch(`${deps.serverUrl}/api/tasks/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+    } catch (error) {
+        return { submitted: 'unknown', error: unconfirmed(sequenceId, error.message) };
+    }
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) return { submitted: false, error: result.error || `入队失败（HTTP ${response.status}）` };
+    if (!Array.isArray(result.taskIds) || result.taskIds.length !== body.count) return { submitted: 'unknown', error: unconfirmed(sequenceId), taskIds: result.taskIds || [] };
+    return { submitted: true, taskIds: result.taskIds };
+}
+
+// Bookkeeping after tasks are queued must never turn a queued batch into an error.
+async function settle(task, fallback = undefined) {
+    try { return await task(); }
+    catch (error) { console.warn('[MCP] bookkeeping after submit failed:', error.message); return fallback; }
+}
+
+// Fixed routing makes the server run every task on one group; agents must see
+// and validate against that group, not the one they asked for.
+async function fixedRoutingGroup(deps) {
+    const routing = await localJson(deps, 'GET', '/api/providers/failover');
+    return routing?.strategy === 'fixed' ? String(routing.selectedProviderId || '').trim() : '';
+}
+
+// What the queue really runs, read back from the task itself.
+function actualRoute(deps, taskIds, groupId, model) {
+    const task = taskIds?.length ? deps.runtime.taskQueue.getTask(taskIds[0]) : null;
+    return { groupId: task?.providerId || groupId, model: task?.model || model };
+}
+
+// ---- Agent fast path: stateless batch, wait, cancel -------------------------
+
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+const MAX_BATCH_ITEMS = 500;
+const SUBMIT_CONCURRENCY = 4;
+
+// Tasks from one client name share a queue lane: round-robin keeps agents from
+// starving the user's own sequences. Two windows of the same client share it.
+function agentSequence(context = {}) {
+    const name = String(context.client || '').trim().slice(0, 40) || 'agent';
+    return { id: `agent:${name}`, name: `Agent · ${name}` };
+}
+
+async function generateBatch(args, deps, context) {
+    const key = String(args.idempotencyKey || '').trim();
+    if (!key) return submitBatch(args, deps, context);
+    const lane = agentSequence(context);
+    const fingerprint = deps.idempotency.constructor.fingerprint({ items: args.items, defaults: args.defaults || null });
+    return deps.idempotency.run(`${lane.id}\n${key}`, fingerprint, () => submitBatch(args, deps, context));
+}
+
+// Throws only before anything is queued; after that it always returns a result.
+async function submitBatch(args, deps, context) {
+    const items = Array.isArray(args.items) ? args.items : [];
+    if (!items.length) throw new Error('items 不能为空');
+    if (items.length > MAX_BATCH_ITEMS) throw new Error(`一次最多 ${MAX_BATCH_ITEMS} 条，请分批提交`);
+    const defaults = args.defaults && typeof args.defaults === 'object' ? args.defaults : {};
+    const providers = await deps.runtime.providerStore.list();
+    const fixedGroupId = await fixedRoutingGroup(deps);
+    let active = null;
+    try { active = (await rendererSequences(deps)).find(sequence => sequence.current) || null; } catch { /* window closed: no defaults from the UI */ }
+    const lane = agentSequence(context);
+    const images = new Map();
+
+    // Validate everything before anything is billed: one bad item, nothing sent.
+    const bodies = [];
+    for (let index = 0; index < items.length; index += 1) {
+        const item = { ...defaults, ...items[index] };
+        if (defaults.advanced || items[index]?.advanced) item.advanced = { ...defaults.advanced, ...items[index]?.advanced };
+        try {
+            bodies.push(await batchItemBody(item, { providers, active, lane, deps, fixedGroupId, images }));
+        } catch (error) {
+            throw new Error(`第 ${index + 1} 项：${error.message}`);
+        }
+    }
+
+    const limit = await deps.getDailyLimit();
+    const totalImages = bodies.reduce((sum, body) => sum + body.count, 0);
+    await deps.quota.reserve(totalImages, limit);
+
+    // A few at a time: each body may carry large reference images.
+    const outcomes = new Array(bodies.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(SUBMIT_CONCURRENCY, bodies.length) }, async () => {
+        while (next < bodies.length) {
+            const index = next++;
+            outcomes[index] = await submitTasks(deps, bodies[index], lane.id);
+        }
+    }));
+    const refused = outcomes.reduce((sum, outcome, index) => sum + (outcome.submitted === false ? bodies[index].count : 0), 0);
+    if (refused) await settle(() => deps.quota.refund(refused));
+
+    const results = outcomes.map((outcome, index) => ({
+        index,
+        submitted: outcome.submitted,
+        taskIds: outcome.taskIds || [],
+        ...actualRoute(deps, outcome.taskIds, bodies[index].providerId, bodies[index].model),
+        ...(outcome.error ? { error: outcome.error } : {})
+    }));
+    return {
+        totalImages,
+        taskIds: results.flatMap(result => result.taskIds),
+        items: results,
+        agentSequenceId: lane.id,
+        quota: await settle(() => deps.quota.usage(limit), null)
+    };
+}
+
+async function batchItemBody(item, { providers, active, lane, deps, fixedGroupId, images }) {
+    const prompt = String(item.prompt ?? '').trim();
+    if (!prompt) throw new Error('提示词为空');
+    const count = Number(item.count ?? 1);
+    if (!Number.isInteger(count) || count < 1 || count > 100) throw new Error('张数必须是 1 到 100 的整数');
+
+    const { group, model } = pickGroupAndModel(item, providers, active, fixedGroupId);
+    // The active sequence's ratio, size and settings only make sense for its own model.
+    const inherit = active && active.model === model ? active : null;
+    const profile = deps.imageProfiles.getImageApiProfile(model);
+    const ratios = (profile.dimensionOptions || []).map(option => option.value ?? option);
+    const ratio = String(item.ratio || inherit?.ratio || ratios[0] || '1:1');
+    if (ratios.length && !ratios.includes(ratio)) throw new Error(`画幅 ${ratio} 不受 ${model} 支持，可选：${ratios.join('、')}`);
+
+    const references = Array.isArray(item.references) ? item.references : [];
+    if (references.length > profile.maxReferences) throw new Error(`${model} 最多支持 ${profile.maxReferences} 张参考图`);
+    const referenceImages = [];
+    for (const reference of references) referenceImages.push(await loadReference(reference, deps, images));
+
+    const advanced = item.advanced && typeof item.advanced === 'object' ? item.advanced : inherit?.advanced || {};
+    return {
+        sequenceId: lane.id,
+        sequenceName: lane.name,
+        count,
+        providerId: group.id,
+        providerName: group.name,
+        model,
+        operation: 'generate',
+        prompt,
+        ratio,
+        imageSize: generationSettings.resolveImageSize(model, item.imageSize || inherit?.imageSize || '', deps.imageProfiles),
+        referenceImages,
+        generationConfig: generationSettings.buildGenerationConfig({ model, advanced }, deps.imageProfiles)
+    };
+}
+
+// The same picture used by many items is read and encoded once per call.
+function loadReference(reference, deps, images) {
+    const key = reference?.base64 ? `b64:${reference.base64}` : reference?.historyId ? `history:${reference.historyId}` : `file:${path.resolve(String(reference?.filePath || ''))}`;
+    if (!images.has(key)) {
+        images.set(key, (async () => {
+            const image = reference?.base64 ? imageFromBase64(reference.base64)
+                : reference?.historyId ? await resolveHistory({ historyId: reference.historyId }, deps)
+                    : await readImageFile(reference?.filePath);
+            return { base64: image.buffer.toString('base64'), mimeType: image.mimeType };
+        })());
+    }
+    return images.get(key);
+}
+
+function sameModel(left, right) {
+    return String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
+}
+
+// Like the generate button: an enabled group with a key and an address.
+function usableGroup(group) {
+    if (group.enabled === false) throw new Error(`配置组「${group.name}」已停用`);
+    if (!group.apiKey || !(group.baseUrl || group.url)) throw new Error(`配置组「${group.name}」没有填写 API Key 或接口地址`);
+    return group;
+}
+
+function pickGroupAndModel(item, providers, active, fixedGroupId = '') {
+    const groupId = String(item.groupId || '').trim();
+    const wanted = String(item.model || '').trim();
+    if (fixedGroupId) {
+        const pinned = providers.find(provider => provider.id === fixedGroupId);
+        if (!pinned) throw new Error('路由策略是「指定配置组」，但那个配置组已不存在，请在 PicGen 里重新选择');
+        usableGroup(pinned);
+        if (groupId && groupId !== pinned.id) throw new Error(`当前路由策略固定使用配置组「${pinned.name}」，不能指定其他配置组`);
+        const fallback = (pinned.models || []).find(name => sameModel(name, active?.model)) || pinned.models?.[0];
+        const model = (pinned.models || []).find(name => sameModel(name, wanted || fallback));
+        if (!model) throw new Error(`当前路由策略固定使用配置组「${pinned.name}」，它没有模型 ${wanted}；可用：${(pinned.models || []).join('、')}`);
+        return { group: pinned, model };
+    }
+    if (groupId) {
+        const group = providers.find(provider => provider.id === groupId);
+        if (!group) throw new Error(`找不到配置组 ${groupId}，用 picgen_list_models 查看`);
+        usableGroup(group);
+        const fallback = active?.providerId === group.id ? active.model : group.models?.[0];
+        const model = (group.models || []).find(name => sameModel(name, wanted || fallback));
+        if (!model) throw new Error(`配置组「${group.name}」没有模型 ${wanted || '（未指定）'}`);
+        return { group, model };
+    }
+    if (wanted) {
+        const offering = providers.filter(provider => provider.enabled !== false && (provider.models || []).some(name => sameModel(name, wanted)));
+        if (!offering.length) throw new Error(`没有已启用的配置组提供模型 ${wanted}，用 picgen_list_models 查看可用模型`);
+        const group = usableGroup(offering.find(provider => provider.id === active?.providerId) || offering.find(provider => provider.apiKey) || offering[0]);
+        return { group, model: group.models.find(name => sameModel(name, wanted)) };
+    }
+    if (!active?.model) throw new Error('没有指定 model，界面上也没有可沿用的当前序列');
+    const group = providers.find(provider => provider.id === active.providerId);
+    if (!group) throw new Error('界面当前序列的配置组不存在，请指定 model');
+    usableGroup(group);
+    return { group, model: active.model };
+}
+
+async function waitTasks(args, deps) {
+    const ids = [...new Set((Array.isArray(args.taskIds) ? args.taskIds : []).map(String))];
+    if (!ids.length) throw new Error('需要 taskIds');
+    if (ids.length > 500) throw new Error('一次最多等待 500 个任务');
+    const timeoutMs = Math.max(1, Math.min(600, Number(args.timeoutSeconds) || 60)) * 1000;
+    const deadline = Date.now() + timeoutMs;
+    let snapshot;
+    while (true) {
+        snapshot = ids.map(id => ({ id, task: deps.runtime.taskQueue.getTask(id) }));
+        const running = snapshot.some(({ task }) => task && !TERMINAL_STATUSES.has(task.status));
+        if (!running || Date.now() >= deadline) break;
+        await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    const tasks = snapshot.map(({ id, task }) => ({
+        taskId: id,
+        status: task ? task.status : 'unknown',
+        filePath: task?.result?.filePath || '',
+        error: task?.error || '',
+        prompt: task?.prompt || '',
+        progress: task?.progress?.phase || ''
+    }));
+    const pending = tasks.filter(task => task.status !== 'unknown' && !TERMINAL_STATUSES.has(task.status)).map(task => task.taskId);
+    // A typo, or a task cleared an hour after it ended: not "finished", just not known.
+    const unknown = tasks.filter(task => task.status === 'unknown').map(task => task.taskId);
+    const summary = { done: pending.length === 0, pending, unknown, tasks };
+    if (!args.includeImages) return summary;
+    const images = [];
+    for (const task of tasks) {
+        if (task.status !== 'completed' || !task.filePath) continue;
+        try {
+            const image = await readImageFile(task.filePath);
+            const preview = await deps.downscale(image.buffer, Number(args.maxEdge) || 512);
+            images.push(imageContent(preview.buffer, preview.mimeType));
+        } catch { /* the path in the summary is enough */ }
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }, ...images], _raw: true };
 }
 
 function listTasks(args, deps) {

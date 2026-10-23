@@ -42,7 +42,7 @@ function harness() {
     const context = vm.createContext({
         console, URL, Date, Map, Set, document, setTimeout, clearTimeout, setInterval, clearInterval,
         requestAnimationFrame: () => 0,
-        window: { PicGenImageApiProfiles: profiles, PicGenRendererUtils: {}, picgenDesktop: {} },
+        window: { PicGenImageApiProfiles: profiles, PicGenRendererUtils: {}, PicGenGenerationSettings: require('../generationSettings'), PicGenMcpClientConfig: require('../mcpClientConfig'), picgenDesktop: {} },
         fetch: async () => { throw new Error('Unexpected network request'); }
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'desktop.js'), 'utf8'), context);

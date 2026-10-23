@@ -60,7 +60,7 @@ function harness(desktop = {}) {
         // 用真实的 UMD 模块而不是手写的替身：替身每次都要跟着真实模块的导出手工同步，
         // 少一个函数就会在 generateImages 里抛出 TypeError，从而被 catch 当成
         // "入队结果未确认"，让这里看到的是 0 次请求而不是一个直白的报错。
-        window: { PicGenImageApiProfiles: require('../imageApiProfiles'), PicGenRendererUtils: require('../rendererUtils'), picgenDesktop: desktop },
+        window: { PicGenImageApiProfiles: require('../imageApiProfiles'), PicGenRendererUtils: require('../rendererUtils'), PicGenGenerationSettings: require('../generationSettings'), PicGenMcpClientConfig: require('../mcpClientConfig'), picgenDesktop: desktop },
         fetch: async () => { throw new Error('Unexpected network request'); }
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'desktop.js'), 'utf8'), context);

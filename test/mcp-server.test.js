@@ -8,6 +8,7 @@ const http = require('http');
 const { McpConfigStore, DEFAULT_MCP_PORT } = require('../mcpConfig');
 const { McpHttpServer, PROTOCOL_VERSION } = require('../mcpServer');
 const { createMcpBridge } = require('../mcpBridge');
+const { McpDailyQuota } = require('../mcpQuota');
 
 async function tempDir() {
     return fs.mkdtemp(path.join(os.tmpdir(), 'picgen-mcp-'));
@@ -133,7 +134,9 @@ function bridgeDeps(overrides = {}) {
         mcpUrl: 'http://127.0.0.1:1234/mcp',
         serverUrl: 'http://127.0.0.1:9',
         runtime,
-        imageProfiles: { getImageApiProfile: () => ({ dimensionOptions: ['1:1'], imageSizeOptions: ['1K'], maxReferences: 4 }) },
+        imageProfiles: require('../imageApiProfiles'),
+        quota: new McpDailyQuota({ filePath: path.join(os.tmpdir(), `picgen-quota-${process.pid}-${Math.random()}.json`) }),
+        getDailyLimit: async () => 0,
         testImage: async () => ({ success: true, latencyMs: 5 }),
         testChat: async () => ({ success: true }),
         discover: async () => ({ models: ['gemini-test'] }),
@@ -157,9 +160,7 @@ function bridgeDeps(overrides = {}) {
         downscale: async buffer => ({ buffer, mimeType: 'image/png' }),
         renderer: {
             listSequences: async () => sequences,
-            mutateSequence: async request => request.action === 'generation-settings'
-                ? { imageSize: '1K', generationConfig: { openAIModeration: 'low' } }
-                : { action: request.action, id: request.sequenceId || 'seq-new' }
+            mutateSequence: async request => ({ action: request.action, id: request.sequenceId || 'seq-new' })
         },
         optimize: async () => '优化后的提示词',
         reverse: async () => '反推出的提示词',
@@ -240,9 +241,10 @@ test('mcp generate submits the current sequence and reports a missing prompt', a
     let submitted = null;
     const original = global.fetch;
     global.fetch = async (url, options) => {
+        if (String(url).includes('/api/providers/failover')) return { ok: true, json: async () => ({ strategy: 'priority' }) };
         if (!String(url).includes('/api/tasks/batch')) return original(url, options);
         submitted = JSON.parse(options.body);
-        return { ok: true, json: async () => ({ taskIds: ['t1'] }) };
+        return { ok: true, json: async () => ({ taskIds: Array.from({ length: submitted.count }, (_, index) => `t${index + 1}`) }) };
     };
     const deps = bridgeDeps();
     const server = new McpHttpServer({ api: createMcpBridge(deps), port: 0, token: TOKEN });
@@ -250,12 +252,12 @@ test('mcp generate submits the current sequence and reports a missing prompt', a
     try {
         const session = (await post(server, { jsonrpc: '2.0', id: 1, method: 'initialize' })).session;
         const queued = await call(server, session, 'picgen_generate', { count: 2 });
-        assert.deepEqual(queued.taskIds, ['t1']);
+        assert.deepEqual(queued.taskIds, ['t1', 't2']);
         assert.equal(submitted.prompt, '一只猫');
         assert.equal(submitted.count, 2);
         assert.equal(submitted.model, 'gemini-test');
         assert.equal(submitted.imageSize, '1K', 'the size the UI would send for this model');
-        assert.deepEqual(submitted.generationConfig, { openAIModeration: 'low' }, 'settings built by the UI, not a copied key list');
+        assert.equal(submitted.generationConfig.responseModalities, 'TEXT_IMAGE', 'settings built by the shared builder, not a copied key list');
         deps.renderer.listSequences = async () => [{ id: 'seq1', prompt: '   ', references: [], current: true }];
         const refused = await call(server, session, 'picgen_generate', {});
         assert.match(refused, /没有提示词/);
@@ -272,9 +274,10 @@ test('mcp generate resolves @ mentions like the UI and refuses what the UI refus
     let submitted = null;
     const original = global.fetch;
     global.fetch = async (url, options) => {
+        if (String(url).includes('/api/providers/failover')) return { ok: true, json: async () => ({ strategy: 'priority' }) };
         if (!String(url).includes('/api/tasks/batch')) return original(url, options);
         submitted = JSON.parse(options.body);
-        return { ok: true, json: async () => ({ taskIds: ['t1'] }) };
+        return { ok: true, json: async () => ({ taskIds: Array.from({ length: submitted.count }, (_, index) => `t${index + 1}`) }) };
     };
     const sequence = { id: 'seq1', name: '序列1', prompt: '把 @{橘猫} 放进客厅', providerId: 'g1', model: 'gemini-test', ratio: '1:1', count: '1', imageSize: '1K', references: [{ id: 'r1', alias: '橘猫', filePath: imagePath, mimeType: 'image/png' }], current: true };
     const deps = bridgeDeps({ sequences: [sequence] });
@@ -431,3 +434,16 @@ async function callRaw(server, session, name, arguments_) {
     const response = await post(server, { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name, arguments: arguments_ } }, session);
     return response.body.result;
 }
+
+test('mcp tool calls need the session from the handshake', async () => {
+    const server = new McpHttpServer({ api: createMcpBridge(bridgeDeps()), port: 0, token: TOKEN });
+    await server.start();
+    try {
+        const anonymous = await post(server, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'picgen_status', arguments: {} } });
+        assert.equal(anonymous.status, 400, 'no session means no client identity for its tasks');
+        const listed = await post(server, { jsonrpc: '2.0', id: 4, method: 'tools/list' });
+        assert.equal(listed.status, 200, 'read-only discovery stays open');
+    } finally {
+        await server.close();
+    }
+});

@@ -130,6 +130,7 @@ contextBridge.exposeInMainWorld('picgenDesktop', {
     replyMcp: (id, value) => ipcRenderer.send('desktop:mcp-result', { id, value }),
     getMcpSettings: () => ipcRenderer.invoke('desktop:mcp-get'),
     setMcpEnabled: (enabled) => ipcRenderer.invoke('desktop:mcp-set', { enabled }),
+    setMcpDailyLimit: (dailyImageLimit) => ipcRenderer.invoke('desktop:mcp-set', { dailyImageLimit }),
     regenerateMcpToken: () => ipcRenderer.invoke('desktop:mcp-regenerate-token'),
     moveImagePreview: (point) => ipcRenderer.send('desktop:move-image-preview', point),
     hideImagePreview: () => ipcRenderer.send('desktop:hide-image-preview')

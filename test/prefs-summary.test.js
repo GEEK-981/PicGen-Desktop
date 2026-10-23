@@ -49,7 +49,7 @@ function harness() {
         Event: class { constructor(type) { this.type = type; } },
         requestAnimationFrame: () => 0,
         window: {
-            PicGenImageApiProfiles: profiles, PicGenRendererUtils: {},
+            PicGenImageApiProfiles: profiles, PicGenRendererUtils: {}, PicGenGenerationSettings: require('../generationSettings'), PicGenMcpClientConfig: require('../mcpClientConfig'),
             picgenDesktop: { syncPrefsWindow: snapshot => sent.push(snapshot) }
         },
         fetch: async () => { throw new Error('Unexpected network request'); }

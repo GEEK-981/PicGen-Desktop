@@ -549,11 +549,25 @@ export function SettingsPage() { return (
 <label className="full-field">
 <span className="settings-field-label">
 <span>{"连接地址"}</span>
-<Action className="settings-help-icon" type="button" title="只监听 127.0.0.1，局域网无法访问，网页也无法调用。客户端配置里带有访问令牌，请勿外传；泄露后点「重置令牌」，旧配置立即失效。" aria-label="MCP 连接地址说明" markup={"<i data-lucide=\"circle-help\"></i>"} />
+<Action className="settings-help-icon" type="button" title="只监听 127.0.0.1，局域网无法访问，网页也无法调用。HTTP 配置里带有访问令牌，请勿外传；泄露后点「重置令牌」，旧配置立即失效。stdio 配置（Claude Desktop、Codex）需要本机装有 Node.js 18 以上，它每次自动读取当前地址和令牌，端口或令牌变了也不用改配置。" aria-label="MCP 连接地址说明" markup={"<i data-lucide=\"circle-help\"></i>"} />
 </span>
 <Input inputSize="sm" id="mcpUrlInput" type="text" readOnly spellCheck={false} placeholder="启用后显示" />
 </label>
+<label className="full-field">
+<span className="settings-field-label">
+<span>{"每日张数上限"}</span>
+<Action className="settings-help-icon" type="button" title="所有 agent 通过 MCP 提交的图片合计，按本地日期计数，零点清零。一次请求如果会超出剩余额度，整批拒绝。0 表示不限。" aria-label="每日张数上限说明" markup={"<i data-lucide=\"circle-help\"></i>"} />
+</span>
+<Input inputSize="sm" id="mcpDailyLimitInput" type="number" min="0" max="1000000" step="1" defaultValue="0" />
+<span id="mcpDailyUsage" className="mcp-usage-line"></span>
+</label>
 <div className="settings-actions">
+<NativeSelect id="mcpClientFormatSelect" aria-label="客户端类型" title="选择要接入的 AI 客户端">
+<option value="claude-code">{"Claude Code（命令）"}</option>
+<option value="http-json">{"Cursor 等（HTTP JSON）"}</option>
+<option value="claude-desktop">{"Claude Desktop（stdio）"}</option>
+<option value="codex">{"Codex（stdio TOML）"}</option>
+</NativeSelect>
 <Action id="mcpCopyConfigBtn" className="secondary-button" type="button" markup={"<i data-lucide=\"copy\"></i><span>复制客户端配置</span>"} />
 <Action id="mcpRegenerateTokenBtn" className="secondary-button" type="button" markup={"<i data-lucide=\"key-round\"></i><span>重置令牌</span>"} />
 </div>

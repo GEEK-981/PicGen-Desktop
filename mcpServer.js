@@ -2,6 +2,16 @@ const http = require('http');
 const crypto = require('crypto');
 
 const PROTOCOL_VERSION = '2025-06-18';
+
+// Sent once at the handshake so an agent knows the fast path without exploring.
+const INSTRUCTIONS = [
+    'PicGen 是用户本机的 AI 生图应用，生成的图片保存在用户电脑上。',
+    '推荐流程：',
+    '1. picgen_list_models 查看可用模型，以及各自支持的画幅、分辨率档位和参考图上限。',
+    '2. picgen_generate_batch 一次提交全部请求。每条可单独指定 prompt、model、ratio、imageSize、count、references；不写 model 时沿用用户界面当前序列的模型和设置。参考图按 references 的顺序编号，提示词里称为「参考图1」「参考图2」。',
+    '3. picgen_wait_tasks 等待结果，返回保存好的文件路径；includeImages=true 可直接看到缩略图。',
+    '注意：生图会产生费用。建议每批都带 idempotencyKey：同一批因超时等原因要重发时用同一个 key，PicGen 会返回第一次的结果而不会重复入队。提交结果显示「未确认」时不要重发，先用 picgen_list_tasks 核对。用户可能设置了每日张数上限，picgen_status 可查看今天的剩余额度。picgen_cancel_my_tasks 可撤回你提交的全部任务。'
+].join('\n');
 const SERVER_NAME = 'picgen';
 
 const TOOLS = [
@@ -27,7 +37,10 @@ const TOOLS = [
     { name: 'picgen_delete_sequence', title: '删除序列', description: '删除一个序列。最后一个序列不能删除。', inputSchema: { type: 'object', properties: { sequenceId: { type: 'string' } }, required: ['sequenceId'] } },
     { name: 'picgen_add_reference', title: '添加参考图', description: '给序列添加一张参考图。filePath 指向本地图片，或传 base64 与 mimeType。sequenceId 留空添加到当前序列。', inputSchema: { type: 'object', properties: { sequenceId: { type: 'string' }, filePath: { type: 'string' }, base64: { type: 'string' }, mimeType: { type: 'string' }, name: { type: 'string' }, alias: { type: 'string', description: '提示词里用 @{alias} 引用这张图' } } } },
     { name: 'picgen_remove_reference', title: '移除参考图', description: '从序列移除一张参考图。referenceId 来自 picgen_get_sequence。', inputSchema: { type: 'object', properties: { sequenceId: { type: 'string' }, referenceId: { type: 'string' } }, required: ['referenceId'] } },
-    { name: 'picgen_generate', title: '生成图片', description: '按一个序列的草稿提交生成任务，走与界面相同的队列、路由和故障转移。sequenceId 留空使用当前序列。count 覆盖草稿里的张数（1 到 5）。提交后用 picgen_get_task 轮询，完成后结果里带 filePath。', inputSchema: { type: 'object', properties: { sequenceId: { type: 'string' }, count: { type: 'integer', minimum: 1, maximum: 5 }, prompt: { type: 'string', description: '覆盖草稿提示词，只对这一次生效' } } } },
+    { name: 'picgen_generate_batch', title: '批量生成图片', description: '一次提交多条生图请求，全部立即入队，返回所有任务 ID。每条可单独指定提示词、模型、画幅、档位、张数和参考图；没写的字段用 defaults，再没有就沿用用户界面当前序列。所有条目先整体校验，任何一条不合格就一张都不提交。提交后用 picgen_wait_tasks 等结果。带 idempotencyKey 重发同一批不会重复入队。', inputSchema: { type: 'object', properties: { items: { type: 'array', minItems: 1, items: { type: 'object', properties: { prompt: { type: 'string' }, model: { type: 'string', description: '来自 picgen_list_models；留空沿用界面当前序列' }, groupId: { type: 'string', description: '指定配置组；留空自动选提供该模型的已启用配置组' }, ratio: { type: 'string', description: '如 16:9，需在该模型支持的画幅内' }, imageSize: { type: 'string', description: '如 1K / 2K / 4K，模型不支持时自动收敛。不写时沿用界面当前序列；没有可沿用的就用应用默认档位（偏高，费用也偏高），在意费用请明确写 1K' }, count: { type: 'integer', minimum: 1, maximum: 100 }, references: { type: 'array', items: { type: 'object', properties: { filePath: { type: 'string', description: '本地图片的绝对路径' }, historyId: { type: 'string', description: '来自 picgen_list_history' }, base64: { type: 'string' } } }, description: '按顺序编号为参考图1、参考图2…' }, advanced: { type: 'object', description: '高级参数，字段同界面高级设置，如 gptQuality、temperature' } }, required: ['prompt'] } }, defaults: { type: 'object', properties: { model: { type: 'string', description: '来自 picgen_list_models；留空沿用界面当前序列' }, groupId: { type: 'string', description: '指定配置组；留空自动选提供该模型的已启用配置组' }, ratio: { type: 'string', description: '如 16:9，需在该模型支持的画幅内' }, imageSize: { type: 'string', description: '如 1K / 2K / 4K，模型不支持时自动收敛。不写时沿用界面当前序列；没有可沿用的就用应用默认档位（偏高，费用也偏高），在意费用请明确写 1K' }, count: { type: 'integer', minimum: 1, maximum: 100 }, references: { type: 'array', items: { type: 'object', properties: { filePath: { type: 'string', description: '本地图片的绝对路径' }, historyId: { type: 'string', description: '来自 picgen_list_history' }, base64: { type: 'string' } } }, description: '按顺序编号为参考图1、参考图2…' }, advanced: { type: 'object', description: '高级参数，字段同界面高级设置，如 gptQuality、temperature' } } }, idempotencyKey: { type: 'string', description: '同一个 key 24 小时内只提交一次（应用重启后依然有效），重复调用返回第一次的结果；同一个 key 换了请求内容会被拒绝' } }, required: ['items'] } },
+    { name: 'picgen_wait_tasks', title: '等待任务完成', description: '等待一组任务全部结束（完成、失败或取消）后一次返回，或到超时返回当前进度。完成的任务带保存好的 filePath；includeImages=true 时附带缩略图。超时未完成的列在 pending 里，可再次调用继续等。', inputSchema: { type: 'object', properties: { taskIds: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 500 }, timeoutSeconds: { type: 'integer', minimum: 1, maximum: 600, description: '默认 60' }, includeImages: { type: 'boolean' }, maxEdge: { type: 'integer', description: '缩略图最长边，默认 512' } }, required: ['taskIds'] } },
+    { name: 'picgen_cancel_my_tasks', title: '取消我的任务', description: '取消当前客户端（按客户端名称区分，同名的多个窗口算同一个）通过 picgen_generate_batch 提交的、仍在排队或生成中的全部任务。', inputSchema: { type: 'object', properties: {} } },
+    { name: 'picgen_generate', title: '按序列生成', description: '按界面上一个序列的草稿提交生成任务（会用到序列里的参考图和 @ 引用），走与界面相同的队列、路由和故障转移。sequenceId 留空使用当前序列。count 覆盖草稿里的张数（1 到 5）。一般批量出图请用 picgen_generate_batch。', inputSchema: { type: 'object', properties: { sequenceId: { type: 'string' }, count: { type: 'integer', minimum: 1, maximum: 5 }, prompt: { type: 'string', description: '覆盖草稿提示词，只对这一次生效' } } } },
     { name: 'picgen_list_tasks', title: '列出任务', description: '列出队列里的任务。status 取 pending、running、completed、failed、cancelled，多个用逗号分隔。', inputSchema: { type: 'object', properties: { status: { type: 'string' }, sequenceId: { type: 'string' }, limit: { type: 'integer' } } } },
     { name: 'picgen_get_task', title: '读取任务', description: '读取一个任务的状态、进度和结果。完成后 result.filePath 是保存好的图片。', inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] } },
     { name: 'picgen_cancel_task', title: '取消任务', description: '取消一个排队中或生成中的任务。正在保存的任务不能取消。', inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] } },
@@ -179,6 +192,12 @@ class McpHttpServer {
             this._send(res, 404, { jsonrpc: '2.0', error: { code: -32001, message: 'session not found' }, id: null });
             return;
         }
+        // A tool call carries the client's identity (its queue lane, its idempotency
+        // keys), which comes from the handshake: no session, no tool call.
+        if (!sessionId && messages.some(item => item?.method === 'tools/call')) {
+            this._send(res, 400, { jsonrpc: '2.0', error: { code: -32600, message: 'initialize first: tools/call needs the Mcp-Session-Id from the handshake' }, id: null });
+            return;
+        }
         for (const item of messages) {
             if (!item || item.jsonrpc !== '2.0' || typeof item.method !== 'string') {
                 replies.push({ jsonrpc: '2.0', error: { code: -32600, message: 'invalid request' }, id: item?.id ?? null });
@@ -207,7 +226,8 @@ class McpHttpServer {
             if (message.method === 'initialize') {
                 const id = crypto.randomBytes(16).toString('hex');
                 this._forgetOldestSessions();
-                this.sessions.set(id, { pending: [], res: null });
+                const client = String(message.params?.clientInfo?.name || '').trim();
+                this.sessions.set(id, { pending: [], res: null, client });
                 return {
                     reply: {
                         jsonrpc: '2.0',
@@ -215,7 +235,8 @@ class McpHttpServer {
                         result: {
                             protocolVersion: PROTOCOL_VERSION,
                             capabilities: { tools: { listChanged: false } },
-                            serverInfo: { name: this.serverName, version: this.version }
+                            serverInfo: { name: this.serverName, version: this.version },
+                            instructions: INSTRUCTIONS
                         }
                     },
                     sessionId: id
@@ -228,7 +249,7 @@ class McpHttpServer {
                 const args = message.params?.arguments || {};
                 const tool = this.tools.find(item => item.name === name);
                 if (!tool) return reply({ error: { code: -32602, message: `unknown tool: ${name}` } });
-                const result = await this.api.call(name, args);
+                const result = await this.api.call(name, args, { client: this.sessions.get(sessionId)?.client || '' });
                 return reply({ result });
             }
             return reply({ error: { code: -32601, message: `method not found: ${message.method}` } });
@@ -270,4 +291,4 @@ function readBody(req, limit = 64 * 1024 * 1024) {
     });
 }
 
-module.exports = { McpHttpServer, TOOLS, toolResult, toolError, imageContent, PROTOCOL_VERSION };
+module.exports = { McpHttpServer, TOOLS, toolResult, toolError, imageContent, PROTOCOL_VERSION, INSTRUCTIONS };

@@ -56,7 +56,7 @@ function harness() {
         console, URL, Date, Map, Set, document, setTimeout, clearTimeout, setInterval, clearInterval,
         requestAnimationFrame: () => 0, cancelAnimationFrame() {},
         window: {
-            PicGenImageApiProfiles: profiles, PicGenRendererUtils: {},
+            PicGenImageApiProfiles: profiles, PicGenRendererUtils: {}, PicGenGenerationSettings: require('../generationSettings'), PicGenMcpClientConfig: require('../mcpClientConfig'),
             picgenDesktop: {
                 showImagePreview: payload => calls.show.push(payload),
                 hideImagePreview: () => { calls.hide += 1; },

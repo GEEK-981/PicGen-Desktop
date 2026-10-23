@@ -181,6 +181,8 @@ const ux = window.PicGenUX;
 const imageApiProfiles = window.PicGenImageApiProfiles;
 if (!imageApiProfiles) throw new Error('Image API capability profiles failed to load');
 const rendererUtils = window.PicGenRendererUtils;
+const generationSettings = window.PicGenGenerationSettings;
+const mcpClientConfigs = window.PicGenMcpClientConfig;
 if (!rendererUtils) throw new Error('Renderer utilities failed to load');
 
 const OPENAI_LEGACY_IMAGE_SIZE_OPTIONS = imageApiProfiles.getImageApiProfile('gpt-image-1').dimensionOptions;
@@ -450,8 +452,11 @@ function cacheElements() {
     el.mcpEnabledToggle = document.getElementById('mcpEnabledToggle');
     el.mcpUrlInput = document.getElementById('mcpUrlInput');
     el.mcpCopyConfigBtn = document.getElementById('mcpCopyConfigBtn');
+    el.mcpClientFormatSelect = document.getElementById('mcpClientFormatSelect');
     el.mcpRegenerateTokenBtn = document.getElementById('mcpRegenerateTokenBtn');
     el.mcpPortNotice = document.getElementById('mcpPortNotice');
+    el.mcpDailyLimitInput = document.getElementById('mcpDailyLimitInput');
+    el.mcpDailyUsage = document.getElementById('mcpDailyUsage');
     el.outputDirectoryInput = document.getElementById('outputDirectoryInput');
     el.outputDirectoryMode = document.getElementById('outputDirectoryMode');
     el.chooseOutputDirectoryBtn = document.getElementById('chooseOutputDirectoryBtn');
@@ -866,6 +871,7 @@ function bindFormEvents() {
     el.mcpEnabledToggle.addEventListener('change', saveMcpSettings);
     el.mcpCopyConfigBtn.addEventListener('click', copyMcpClientConfig);
     el.mcpRegenerateTokenBtn.addEventListener('click', regenerateMcpToken);
+    el.mcpDailyLimitInput.addEventListener('change', saveMcpDailyLimit);
     for (const input of document.querySelectorAll('[name="providerStrategy"]')) {
         input.addEventListener('change', () => {
             el.providerStrategySelect.value = input.value;
@@ -2660,31 +2666,7 @@ function getDimensionOptions(profile) {
 }
 
 function createDefaultAdvancedSettings(input = {}) {
-    return {
-        outputMimeType: input.outputMimeType || '',
-        imageCompression: String(input.imageCompression ?? '80'),
-        gptQuality: input.gptQuality || 'auto',
-        gptBackground: input.gptBackground || 'auto',
-        gptImageWidth: input.gptImageWidth ?? '',
-        gptImageHeight: input.gptImageHeight ?? '',
-        openAIModeration: input.openAIModeration || input.moderation || 'auto',
-        nativeResponseFormat: input.nativeResponseFormat || input.responseFormat || '',
-        openAIStyle: input.openAIStyle || input.style || '',
-        inputFidelity: input.inputFidelity || '',
-        apiUser: input.apiUser || input.user || '',
-        responseModalities: input.responseModalities || 'TEXT_IMAGE',
-        thinkingLevel: input.thinkingLevel && input.thinkingLevel !== 'none' ? input.thinkingLevel : 'default',
-        includeThoughts: !!input.includeThoughts,
-        temperature: input.temperature ?? '',
-        topP: input.topP ?? '',
-        topK: input.topK ?? '',
-        googleSearch: !!input.googleSearch,
-        imageSearch: !!input.imageSearch,
-        xaiStore: !!input.xaiStore,
-        xaiFilename: input.xaiFilename || '',
-        xaiExpiresAfter: input.xaiExpiresAfter ?? '',
-        xaiPublicUrl: !!input.xaiPublicUrl
-    };
+    return generationSettings.createDefaultAdvancedSettings(input);
 }
 
 function readAdvancedSettingsFromForm() {
@@ -3646,47 +3628,7 @@ function writeAdvancedSettingsToForm(sequence) {
 }
 
 function buildGenerationConfig(sequence) {
-    const advanced = createDefaultAdvancedSettings(sequence.advanced);
-    const profile = imageApiProfiles.getImageApiProfile(sequence.model);
-    const kind = profile.apiKind;
-    const config = {};
-
-    if (profile.controls.outputFormat && advanced.outputMimeType) config.outputMimeType = advanced.outputMimeType;
-    if (profile.controls.compression && advanced.imageCompression !== '' && advanced.outputMimeType) {
-        config.imageCompression = parseInt(advanced.imageCompression, 10);
-    }
-
-    if (kind === 'openai') {
-        if (advanced.gptQuality) config.gptQuality = advanced.gptQuality;
-        if (advanced.gptBackground) config.gptBackground = advanced.gptBackground;
-        if (advanced.gptImageWidth !== '') config.gptImageWidth = parseInt(advanced.gptImageWidth, 10);
-        if (advanced.gptImageHeight !== '') config.gptImageHeight = parseInt(advanced.gptImageHeight, 10);
-        if (advanced.openAIModeration) config.moderation = advanced.openAIModeration;
-        if (advanced.nativeResponseFormat) config.responseFormat = advanced.nativeResponseFormat;
-        if (advanced.openAIStyle) config.style = advanced.openAIStyle;
-        if (advanced.inputFidelity) config.inputFidelity = advanced.inputFidelity;
-        if (advanced.apiUser) config.user = advanced.apiUser;
-    }
-
-    if (kind === 'gemini') {
-        config.responseModalities = advanced.responseModalities || 'TEXT_IMAGE';
-        config.thinkingLevel = advanced.thinkingLevel || 'default';
-        config.includeThoughts = !!advanced.includeThoughts;
-        if (advanced.temperature !== '') config.temperature = parseFloat(advanced.temperature);
-        if (advanced.topP !== '') config.topP = parseFloat(advanced.topP);
-        if (advanced.topK !== '') config.topK = parseInt(advanced.topK, 10);
-        config.googleSearch = !!advanced.googleSearch;
-        config.imageSearch = !!advanced.imageSearch;
-    }
-
-    if (kind === 'xai') {
-        if (profile.controls.quality && advanced.gptQuality) config.gptQuality = advanced.gptQuality;
-        if (profile.controls.responseFormat && advanced.nativeResponseFormat) {
-            config.responseFormat = advanced.nativeResponseFormat;
-        }
-    }
-
-    return config;
+    return generationSettings.buildGenerationConfig(sequence, imageApiProfiles);
 }
 
 function updateCompressionValue() {
@@ -4884,16 +4826,6 @@ async function mcpMutateSequence(request) {
         if (sequence.id === state.currentSequenceId) { renderReferences(); loadCurrentSequenceToForm(); }
         return mcpSequenceSnapshot(sequence);
     }
-    if (action === 'generation-settings') {
-        // The same size tier and advanced settings generateImages() would send.
-        const profile = imageApiProfiles.getImageApiProfile(sequence.model);
-        const generationConfig = buildGenerationConfig(sequence);
-        if (generationConfig.xaiStorage && !generationConfig.xaiStorage.filename) return { error: '启用 xAI Files 存储时必须填写文件名' };
-        return {
-            imageSize: imageApiProfiles.resolveImageSizePreference(sequence.imageSize, profile.imageSizeOptions) || sequence.imageSize,
-            generationConfig
-        };
-    }
     if (action === 'remove-reference') {
         const reference = sequence.references.find(item => item.id === request.referenceId);
         if (!reference) return { error: '找不到这张参考图' };
@@ -5377,6 +5309,11 @@ function applyMcpSettings(settings = {}) {
     state.mcpSettings = settings;
     el.mcpEnabledToggle.checked = settings.enabled === true;
     el.mcpUrlInput.value = settings.url || (settings.enabled ? '启动中…' : '');
+    if (document.activeElement !== el.mcpDailyLimitInput) el.mcpDailyLimitInput.value = String(settings.dailyImageLimit ?? 0);
+    const usage = settings.dailyUsage;
+    el.mcpDailyUsage.textContent = !usage ? ''
+        : usage.limit ? `今天已提交 ${usage.used} 张，还剩 ${usage.remaining} 张`
+            : `今天已提交 ${usage.used} 张，不限量`;
     el.mcpPortNotice.hidden = !settings.portFallback;
     el.mcpPortNotice.textContent = settings.portFallback
         ? `端口 ${settings.port} 被其他程序占用，本次改用 ${settings.url.match(/:(\d+)\//)?.[1] || '临时端口'}。释放该端口后重启 PicGen，或重新复制客户端配置。`
@@ -5411,6 +5348,24 @@ async function saveMcpSettings() {
     }
 }
 
+async function saveMcpDailyLimit() {
+    // An emptied box is not "no limit": only a typed 0 is.
+    const raw = el.mcpDailyLimitInput.value.trim();
+    const value = Number(raw);
+    if (!raw || !Number.isInteger(value) || value < 0 || value > 1000000) {
+        showToast('每日上限要填 0 到 1000000 的整数，0 表示不限');
+        el.mcpDailyLimitInput.value = String(state.mcpSettings?.dailyImageLimit ?? 0);
+        return;
+    }
+    try {
+        const settings = await window.picgenDesktop.setMcpDailyLimit(value);
+        applyMcpSettings(settings);
+        showToast(settings.dailyImageLimit ? `MCP 每日上限已设为 ${settings.dailyImageLimit} 张` : 'MCP 每日上限已取消');
+    } catch (error) {
+        showToast(`保存每日上限失败: ${error.message}`);
+    }
+}
+
 async function regenerateMcpToken() {
     setMcpControlsBusy(true);
     try {
@@ -5423,19 +5378,18 @@ async function regenerateMcpToken() {
     }
 }
 
-function mcpClientConfig(settings) {
-    return JSON.stringify({
-        mcpServers: {
-            picgen: { type: 'http', url: settings.url, headers: { Authorization: `Bearer ${settings.token}` } }
-        }
-    }, null, 2);
+function mcpClientConfig(settings, format = 'http-json') {
+    return mcpClientConfigs.formatMcpClientConfig(format, settings);
 }
 
 async function copyMcpClientConfig() {
     const settings = state.mcpSettings;
     if (!settings?.url || !settings.token) { showToast('请先启用 MCP 服务器'); return; }
-    await window.picgenDesktop.copyText(mcpClientConfig(settings));
-    showToast('已复制 MCP 客户端配置（含访问令牌，请勿外传）');
+    const format = el.mcpClientFormatSelect.value || 'claude-code';
+    await window.picgenDesktop.copyText(mcpClientConfig(settings, format));
+    showToast(format === 'claude-desktop' || format === 'codex'
+        ? '已复制 stdio 配置（需要本机装有 Node.js 18 以上）'
+        : '已复制 MCP 客户端配置（含访问令牌，请勿外传）');
 }
 
 async function refreshOutputDirectorySettings() {
@@ -8194,7 +8148,10 @@ async function handleSocketMessage(type, task) {
     if (type.startsWith('task:')) applyQueueTask(task);
 
     const sequence = state.sequences.find(item => item.id === task.sequenceId);
-    if (!sequence) return;
+    if (!sequence) {
+        if (type === 'task:completed') await persistCompletedTask(task.result ? task : await fetchTask(task.id) || task, { quiet: true });
+        return;
+    }
 
     ensureSequenceRuntime(sequence);
     updateBatchFromTask(sequence, task);
@@ -8265,7 +8222,7 @@ async function fetchTask(taskId) {
     }
 }
 
-async function persistCompletedTask(task) {
+async function persistCompletedTask(task, { quiet = false } = {}) {
     if (!task.result || state.savedImageTaskIds.has(task.id)) return;
     if (state.savingImageTasks.has(task.id)) return state.savingImageTasks.get(task.id);
     const operation = (async () => {
@@ -8287,7 +8244,7 @@ async function persistCompletedTask(task) {
             createdAt: task.completedAt || Date.now(), ...record
         });
         state.savedImageTaskIds.add(task.id);
-        showToast('图片已生成，可直接拖拽到 PS / AI');
+        if (!quiet) showToast('图片已生成，可直接拖拽到 PS / AI');
     })();
     state.savingImageTasks.set(task.id, operation);
     try { return await operation; }

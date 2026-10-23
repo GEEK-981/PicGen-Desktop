@@ -15,6 +15,8 @@ const { createSimilarityService, SERVICE: SIMILARITY_SERVICE } = require('./simi
 const { createHistoryUsageStore } = require('./historyUsageStore');
 const { McpHttpServer } = require('./mcpServer');
 const { createMcpLifecycle } = require('./mcpLifecycle');
+const { McpDailyQuota } = require('./mcpQuota');
+const { McpIdempotencyStore } = require('./mcpIdempotency');
 const { sniffImageExtension } = require('./imageSniff');
 const { createMcpBridge } = require('./mcpBridge');
 const { createHistoryBinStore, createHistoryTrash, reconcileHistoryBin } = require('./historyTrash');
@@ -141,6 +143,8 @@ let mainWindow = null;
 let serverRuntime = null;
 let serverRuntimePromise = null;
 let mcpLifecycle = null;
+let mcpQuota = null;
+let mcpIdempotency = null;
 let errorLogStore = null;
 let outputConfigStore = null;
 let unsubscribeErrorLog = null;
@@ -2771,10 +2775,25 @@ function setupTaskbarTasks() {
 
 // MCP settings travel over IPC only. The local REST API answers any origin, so a
 // web page must never be able to read the token or switch the server on there.
+// One counter for the whole app, so a restarted MCP server keeps today's count.
+function getMcpQuota() {
+    if (!mcpQuota) mcpQuota = new McpDailyQuota({ filePath: path.join(app.getPath('userData'), 'mcp-usage.json') });
+    return mcpQuota;
+}
+
+// Idempotency keys must outlive an MCP restart: that is when agents resend.
+function getMcpIdempotency() {
+    if (!mcpIdempotency) mcpIdempotency = new McpIdempotencyStore({ filePath: path.join(app.getPath('userData'), 'mcp-idempotency.json') });
+    return mcpIdempotency;
+}
+
 async function readMcpState() {
     const runtime = await ensureServerRuntime();
     const config = await runtime.mcpConfigStore.get();
     return {
+        dailyImageLimit: config.dailyImageLimit,
+        stdioScript: mcpStdioScriptPath(),
+        dailyUsage: await getMcpQuota().usage(config.dailyImageLimit),
         enabled: config.enabled,
         port: config.port,
         token: config.token,
@@ -2786,7 +2805,7 @@ async function readMcpState() {
 async function updateMcpConfig(updates = {}) {
     await ensureServerRuntime();
     // A new token restarts the server, so clients holding the old one are cut off at once.
-    await mcpLifecycle.update({ enabled: updates.enabled, regenerateToken: updates.regenerateToken === true });
+    await mcpLifecycle.update({ enabled: updates.enabled, dailyImageLimit: updates.dailyImageLimit, regenerateToken: updates.regenerateToken === true });
     return readMcpState();
 }
 
@@ -2796,6 +2815,7 @@ function createMcpRuntimeLifecycle(runtime) {
         createServer: config => new McpHttpServer({ api: createMcpRuntimeBridge(runtime), version: app.getVersion(), port: config.port, token: config.token }),
         onStarted: async running => {
             await writeMcpPortFile(running);
+            await installMcpStdioScript();
             console.log(`[MCP] listening at ${running.url}${running.portFallback ? ' (preferred port unavailable)' : ''}`);
         },
         onStopped: () => fs.rm(mcpPortFile(), { force: true }).catch(() => {}),
@@ -2834,6 +2854,9 @@ function createMcpRuntimeBridge(runtime) {
         },
         saveReference: saveReferenceImage,
         listErrors: options => errorLogStore?.list(options) || [],
+        quota: getMcpQuota(),
+        idempotency: getMcpIdempotency(),
+        getDailyLimit: async () => (await runtime.mcpConfigStore.get()).dailyImageLimit,
         clearErrors: () => errorLogStore?.clear() || { removed: 0 },
         downscale: downscaleForMcp,
         renderer: {
@@ -2849,6 +2872,20 @@ function createMcpRuntimeBridge(runtime) {
 function closeMcpForQuit() {
     mcpLifecycle?.closeNow();
     try { require('fs').rmSync(mcpPortFile(), { force: true }); } catch { /* best effort on quit */ }
+}
+
+// stdio clients run this copy, next to mcp.json; refreshed on every start so it
+// always matches the running version.
+function mcpStdioScriptPath() {
+    return path.join(app.getPath('userData'), 'picgen-mcp-stdio.js');
+}
+
+async function installMcpStdioScript() {
+    try {
+        await fs.writeFile(mcpStdioScriptPath(), await fs.readFile(path.join(__dirname, 'picgen-mcp-stdio.js')));
+    } catch (error) {
+        console.warn('[MCP] stdio bridge copy failed:', error.message);
+    }
 }
 
 function mcpPortFile() {
@@ -3361,7 +3398,10 @@ ipcMain.handle('desktop:copy-text', (_event, text) => {
     return { success: true };
 });
 ipcMain.handle('desktop:mcp-get', loggedIpcHandler({ source: 'system', title: '读取 MCP 设置失败', operation: 'mcp-get' }, readMcpState));
-ipcMain.handle('desktop:mcp-set', loggedIpcHandler({ source: 'system', title: '保存 MCP 设置失败', operation: 'mcp-set' }, updates => updateMcpConfig({ enabled: updates?.enabled === true })));
+ipcMain.handle('desktop:mcp-set', loggedIpcHandler({ source: 'system', title: '保存 MCP 设置失败', operation: 'mcp-set' }, updates => updateMcpConfig({
+    enabled: updates?.enabled == null ? undefined : updates.enabled === true,
+    dailyImageLimit: updates?.dailyImageLimit
+})));
 ipcMain.handle('desktop:mcp-regenerate-token', loggedIpcHandler({ source: 'system', title: '重置 MCP 令牌失败', operation: 'mcp-regenerate-token' }, () => updateMcpConfig({ regenerateToken: true })));
 ipcMain.on('desktop:set-expanded', (_event, expanded) => setExpanded(!!expanded, { focus: !!expanded }));
 ipcMain.on('desktop:close', () => setExpanded(false, { focus: false }));
