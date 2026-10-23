@@ -1,0 +1,414 @@
+@layer theme, base, legacy, reset, components, utilities;
+@import 'tailwindcss';
+@import '@appica/ui-react/styles.css';
+@import './legacy-layout.generated.css' layer(legacy);
+@source '../node_modules/@appica/ui-react/dist';
+
+/* Keep legacy layout contracts while the Appica component classes supply the
+   component visuals. Legacy selectors are scoped to their original hooks. */
+:root {
+  --accent: var(--primary);
+  --accent-dark: var(--primary-strong);
+  --accent-soft: var(--primary-subtle);
+  --text: var(--foreground-intense);
+  --muted: var(--foreground-muted);
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+  --surface: var(--background-subtle);
+  --sidebar-active: var(--background-muted);
+  --workspace-bg: var(--background-subtle);
+}
+html, body, #root { width: 100%; height: 100%; margin: 0; }
+body { font-family: var(--font-sans); font-size: 14px; color: var(--foreground); }
+[hidden] { display: none !important; }
+/* Refined ultra-thin scrollbars everywhere: a persistent hairline replaces the
+   overlay scrollbar that flashed in and out on window resize. The thumb only
+   appears when there is overflow, deepens on hover, and reserves no layout gutter. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--foreground-muted) 32%, transparent) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--foreground-muted) 30%, transparent); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--foreground-muted) 55%, transparent); }
+::-webkit-scrollbar-corner { background: transparent; }
+/* Reserve the scrollbar gutter so content width never jumps when it appears. */
+#imageSettingsPanel, #concurrencySettingsPanel, #networkSettingsPanel, #outputSettingsPanel, #chatSettingsPanel,
+.settings-scroll-panel, .settings-panel, .history-gallery, .main-content-scroll, .mainContentScroll,
+/* 常驻式细滚动条占 6px 布局宽：为可滚动容器保留 gutter，避免"内容收起→滚动条
+   消失→整列瞬间加宽 6px 重排"——那正是折叠卡片收到最后一刻的可见顿挫。 */
+.queue-list, .error-logs-list, .reverse-prompt-body, .recent-images, .workspace,
+#imageSettingsPanel, .settings-scroll-panel { scrollbar-gutter: stable; }
+body:not(.collapsed) .collapsed-launcher, body.collapsed .desktop-panel { display: none; }
+.desktop-panel { grid-template-rows: 48px minmax(0, 1fr); background: var(--background-subtle); border-color: var(--border); }
+.collapsed-launcher.picgen-action { position: fixed; inset: 0; width: 92px; height: 52px; }
+.titlebar { display: flex; height: 48px; padding: 0 14px; gap: 12px; background: var(--background); border-bottom: 1px solid var(--border); }
+.window-drag { flex: 1; gap: 10px; }
+.app-mark { width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--primary); }
+.app-title { font-size: 14px; font-weight: 650; gap: 8px; }
+.app-subtitle { font-size: 12px; color: var(--foreground-muted); font-weight: 400; }
+.version-badge { -webkit-app-region: no-drag; }
+.app-shell { grid-template-columns: 64px minmax(0, 1fr); }
+.sidebar { width: 64px; padding: 16px 10px; gap: 12px; background: var(--background); border-right: 1px solid var(--border); }
+.sidebar .sidebar-button { flex: 0 0 40px; }
+.sidebar-button.active { background: var(--background-muted); color: var(--foreground-intense); }
+.sidebar-label { display: none; }
+.main-surface { grid-template-rows: 58px minmax(0, 1fr); background: var(--background-subtle); }
+.tabs-bar { min-height: 58px; padding: 9px 14px; background: var(--background); border-bottom: 1px solid var(--border); }
+.picgen-sequence-tabs { min-width: 0; }
+/* 全局 `* { scrollbar-width: thin }` 不在层里，会盖过 legacy 层的隐藏规则；滚轮横滚见 desktop.js。 */
+.sequence-tabs { scrollbar-width: none; }
+.picgen-sequence-list { max-width: 100%; }
+.picgen-sequence-list .tab-button { min-width: 0; }
+.picgen-sequence-list .tab-button[data-active] { pointer-events: auto; }
+.picgen-sequence-list .tab-close { display: inline-flex; align-items: center; justify-content: center; margin-left: 7px; width: 18px; height: 18px; border-radius: var(--radius-4xs); cursor: pointer; }
+.picgen-sequence-list .tab-close:hover { background: var(--background-muted); }
+.workspace { margin: 16px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--background); overflow: visible; box-shadow: var(--shadow-xs); }
+.prompt-shell { border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+.sequence-head { min-height: 56px; padding: 12px 14px 8px; }
+.sequence-head > label { font-size: 14px; font-weight: 600; }
+.prompt-input { padding: 10px 14px; min-height: 108px; max-height: 240px; font-size: 14px; line-height: 1.75; }
+.prompt-input:empty:before { font-size: 14px; color: var(--foreground-subtle); }
+.reference-panel { padding: 12px 14px; }
+.field-hint { font-size: 11px; }
+.reference-strip { --reference-tile-height: 78px; --reference-tile-width: 72px; }
+.reference-chip { grid-template-rows: 48px 24px; border-radius: var(--radius-sm); }
+.reference-chip > span { line-height: 22px; font-size: 11px; padding: 0 4px; }
+.reference-chip > button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0; }
+.reference-drop { border-radius: var(--radius-sm); border-color: var(--border-strong); background: var(--background-subtle); color: var(--foreground-emphasis); }
+.reference-chip.dragging { opacity: .45; }
+.reference-chip.drop-before { box-shadow: -3px 0 0 var(--primary); }
+.reference-chip.drop-after { box-shadow: 3px 0 0 var(--primary); }
+.controls-grid { padding: 12px 14px; gap: 12px; }
+.main-field-label, .advanced-grid label > span, .settings-form label > span { font-size: 13px; line-height: 1.6; margin-bottom: 6px; }
+.advanced-settings { margin: 0 14px; }
+.advanced-settings summary { min-height: 42px; }
+.picgen-action.main-help-icon { width: 18px; height: 18px; min-width: 0; padding: 0; }
+.picgen-action.main-help-icon svg { width: 14px; height: 14px; }
+/* 优化按钮的图标宿主。Appica Spinner 自带 text-[2.5rem]（1em 基准），窗口里
+   太大；这里把它压回按钮文字尺寸，并跟随按钮 currentColor。 */
+.global-prompt-host { display: inline-flex; flex: 0 0 auto; }
+.global-prompt-group .global-prompt-toggle { padding-inline: 8px; }
+.global-prompt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #9ca3af; box-shadow: 0 0 0 2px color-mix(in srgb, #9ca3af 22%, transparent); transition: background-color .15s, box-shadow .15s; }
+.global-prompt-dot[data-on="true"] { background: #22c55e; box-shadow: 0 0 0 2px color-mix(in srgb, #22c55e 28%, transparent); }
+.global-prompt-popover { width: 300px; max-width: calc(100vw - 24px); }
+.global-prompt-popover textarea { min-height: 96px; resize: vertical; }
+.global-prompt-switch-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.global-prompt-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.optimize-prompt-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex: 0 0 auto; }
+.optimize-prompt-icon .optimize-prompt-wand { width: 16px; height: 16px; }
+.optimize-prompt-icon .optimize-prompt-spinner { font-size: 16px; }
+.actions { padding: 14px; gap: 10px; }
+#generateBtn, #stopBtn { width: 100%; }
+.recent-section { margin: 0 16px 16px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--background); }
+.history-header, .queue-header, .reverse-prompt-header, .error-logs-header { min-height: 76px; padding: 18px; background: var(--background); }
+.history-header h1, .queue-header h1, .reverse-prompt-header h1, .error-logs-header h1 { font-size: 21px; font-weight: 650; letter-spacing: -.4px; }
+.history-toolbar { padding: 12px 16px; background: var(--background); gap: 10px; }
+.history-search { height: 40px; border-radius: var(--radius-md); border-color: var(--border-strong); }
+.history-search input, .error-logs-search input { border: 0; background: transparent; box-shadow: none; outline: none; min-width: 0; }
+.history-filter-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.history-layout-toggle { display: flex; justify-self: end; align-items: center; gap: 2px; padding: 3px; border: 0; border-radius: var(--radius-md); background: var(--background-muted); overflow: visible; }
+.history-layout-toggle button.active { background: var(--background); color: var(--foreground-intense); box-shadow: var(--shadow-xs); }
+.history-gallery { padding: 16px; }
+.history-gallery.grid-layout { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+.history-thumb { border-radius: var(--radius-sm); }
+.history-file-name { font-size: 12px; }
+.history-item-meta, .history-item-size { font-size: 11px; }
+.similar-group { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); margin-bottom: 0; }
+.similar-group summary { font-size: 13px; padding-bottom: 12px; }
+/* 统一图片右键菜单：最长一行「发送到参考图（活动序列）」加行尾原因也要放得下（实测需约 297px；行内边距 14px） */
+.image-context-menu { padding: 6px; border-color: var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); min-width: 304px; }
+.image-context-menu .picgen-action { width: 100%; justify-content: flex-start; padding-inline: 14px; }
+/* 分组线；不可用原因写在行尾（禁用按钮 pointer-events:none，title 显示不出来） */
+.image-context-separator { height: 1px; margin: 4px 6px; background: var(--border); }
+.image-context-menu .picgen-action > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.image-context-menu .picgen-action[data-hint]::after { content: attr(data-hint); flex: none; margin-left: auto; padding-left: 4px; font-size: 10.5px; font-weight: 400; color: var(--foreground-muted); }
+/* 禁用态随目标切换、和菜单弹出在同一刻：去掉 Appica 的 opacity 过渡（250ms），否则上一个目标的禁用态会在菜单里淡出淡入 */
+.image-context-menu .picgen-action { transition-property: color, background-color, border-color, box-shadow, transform, translate, scale; }
+.settings-sheet { background: var(--background-subtle); position: relative; }
+/* Hover-expand TOC rail: a column of hairline ticks pinned to the sheet's right
+   edge, expanding into icon + section titles on hover. */
+.settings-toc { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); z-index: 20; display: flex; flex-direction: column; gap: 10px; padding: 10px 7px; border: 1px solid transparent; border-radius: var(--radius-lg); background: transparent; transition: background .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.settings-toc:hover { background: var(--background); border-color: var(--border); box-shadow: var(--shadow-lg); }
+.settings-toc-item { display: flex; align-items: center; gap: 9px; width: 4px; overflow: hidden; padding: 0; border: 0; background: transparent; cursor: pointer; transition: width .18s ease; }
+.settings-toc:hover .settings-toc-item { width: 158px; }
+.settings-toc-tick { flex: 0 0 4px; width: 4px; height: 16px; border-radius: 999px; background: var(--border-strong); transition: background .15s ease, height .15s ease; }
+.settings-toc-item:hover .settings-toc-tick { background: var(--foreground-muted); }
+.settings-toc-item.is-active .settings-toc-tick { background: var(--primary); height: 22px; }
+.settings-toc-label { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 12px; color: var(--foreground-muted); opacity: 0; transition: opacity .18s ease; }
+.settings-toc:hover .settings-toc-label { opacity: 1; }
+.settings-toc-item.is-active .settings-toc-label { color: var(--foreground-intense); font-weight: 600; }
+.settings-toc-label svg { width: 14px; height: 14px; flex: 0 0 14px; }
+.settings-title { background: var(--background); padding: 14px 16px; }
+/* Appica-style line tabs: justified across the sheet, active gets an underline. */
+.settings-mode-tabs { display: flex; justify-content: space-between; align-items: stretch; gap: 4px; padding: 6px 12px 0; background: var(--background); border-bottom: 1px solid var(--border); }
+.settings-mode-tabs .settings-mode-tab { position: relative; flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 4px; background: transparent; color: var(--foreground-muted); border-radius: 0; font-weight: 500; }
+.settings-mode-tabs .settings-mode-tab:hover { background: transparent; color: var(--foreground-emphasis); }
+.settings-mode-tabs .settings-mode-tab.active { background: transparent; color: var(--primary); font-weight: 600; }
+.settings-mode-tabs .settings-mode-tab.active::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: var(--primary); }
+.settings-mode-tab span { font-size: 12px; white-space: nowrap; }
+.settings-mode-tabs .settings-mode-tab svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.settings-panel { padding: 14px; }
+.settings-form, .unified-inline-editor { border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--background); padding: 16px; box-shadow: var(--shadow-xs); }
+.settings-form h3 { font-size: 15px; font-weight: 600; }
+.settings-form p, .settings-help, .settings-field-hint { font-size: 12px; line-height: 1.65; color: var(--foreground-muted); }
+/* Flat: cards float directly on the sheet, no framed workspace behind them. */
+.unified-supplier-workspace { padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0; }
+.unified-workspace-head { margin-bottom: 16px; }
+.unified-workspace-head > div > strong { font-size: 16px; }
+.unified-workspace-head > div > span { font-size: 12px; }
+.unified-supplier-card { border-radius: var(--radius-xl); border-color: var(--border); background: var(--background); padding: 14px; box-shadow: var(--shadow-xs); }
+.unified-group-card { border-radius: var(--radius-md); background: var(--background-subtle); border-color: var(--border); }
+.unified-group-icon { color: var(--foreground-emphasis); background: var(--background-muted); }
+input[type='radio'], input[type='checkbox'], input[type='range'] { accent-color: var(--primary); }
+.strategy-choice { border-radius: var(--radius-md); border-color: var(--border); padding: 12px; background: var(--background); }
+.strategy-choice:has(input:checked) { background: var(--background-subtle); border-color: var(--border-emphasis); }
+#concurrencySettingsPanel .strategy-choice { min-height: 106px; gap: 8px; }
+#concurrencySettingsPanel .strategy-choice strong { font-size: 13px; }
+#concurrencySettingsPanel .strategy-choice small { font-size: 12px; line-height: 1.5; }
+.routing-ranking { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background-subtle); }
+.routing-ranking td, .routing-ranking th { font-size: 12px; padding: 10px 5px; }
+.error-log-item { margin: 10px 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); overflow: hidden; padding: 8px; }
+.error-log-title-line strong, .error-log-message { font-size: 13px; }
+.toast { border-radius: var(--radius-md); background: var(--primary); color: var(--primary-foreground); font-size: 13px; padding: 12px 16px; box-shadow: var(--shadow-xl); }
+.picgen-confirm { max-width: min(440px, calc(100vw - 32px)); }
+.appica-select-field, .appica-select-host { min-width: 0; width: 100%; }
+.appica-select-field > .modern-select-native { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.appica-select-trigger { width: 100%; min-width: 0; }
+.appica-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.appica-select-positioner { z-index: 1200 !important; }
+.appica-select-menu { max-width: calc(100vw - 24px); max-height: min(320px, var(--available-height)); }
+@media (min-width: 720px) {
+  .prompt-input { min-height: 150px; }
+  .history-toolbar { grid-template-columns: minmax(160px, .8fr) minmax(390px, 1.6fr); align-items: center; }
+}
+/* Desktop density: spend width on the work, with the same Appica primitives. */
+.desktop-panel { grid-template-rows: 40px minmax(0, 1fr); }
+.titlebar { height: 40px; padding: 0 8px 0 10px; gap: 6px; }
+.app-mark { width: 24px; height: 24px; }
+.app-shell { grid-template-columns: 44px minmax(0, 1fr); }
+.sidebar { width: 44px; padding: 8px 5px; gap: 6px; }
+.sidebar .sidebar-button { width: 32px; flex: 0 0 32px; padding: 0; }
+.main-surface { grid-template-rows: 42px minmax(0, 1fr); }
+.tabs-bar { min-height: 42px; padding: 4px 8px; }
+.workspace { width: auto; max-width: none; margin: 8px 10px; border-radius: var(--radius-lg); }
+.sequence-head { min-height: 42px; padding: 5px 10px; }
+.prompt-input { padding: 8px 10px; }
+.reference-panel, .controls-grid { padding: 8px 10px; gap: 8px; }
+.main-field-label, .advanced-grid label > span, .settings-form label > span { margin-bottom: 3px; font-size: 12px; }
+.advanced-settings { margin: 0 10px; }
+.advanced-settings summary { min-height: 34px; }
+.actions { padding: 10px; gap: 8px; }
+.recent-section { margin: 0 10px 10px; border-radius: var(--radius-lg); }
+.history-header, .queue-header, .reverse-prompt-header, .error-logs-header { min-height: 42px; padding: 5px 10px; }
+.history-header h1, .queue-header h1, .reverse-prompt-header h1, .error-logs-header h1 { font-size: 16px; letter-spacing: 0; }
+.history-title-copy { display: flex; align-items: baseline; gap: 8px; }
+.history-toolbar { padding: 2px 10px 8px; gap: 6px; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.history-search { height: 32px; }
+/* 搜索框：legacy 层的隐藏原生 ✕ / 按钮尺寸规则被 @scope 的 [data-slot] 边界挡在 Appica
+   Input/Button 之外，导致原生 ✕ 与自绘清空键并存、40px 按钮撑出 32px 框。只保留自绘键并居中。 */
+.history-search, .error-logs-search { align-items: center; overflow: hidden; }
+.history-search input, .error-logs-search input { height: 100%; align-self: stretch; padding-block: 0; appearance: none; }
+.history-search input::-webkit-search-cancel-button, .error-logs-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.history-search > button, .error-logs-search > button { width: 24px; height: 24px; min-height: 0; padding: 0; gap: 0; align-self: center; justify-self: center; border-radius: var(--radius-sm); color: var(--foreground-muted); }
+.history-search > button svg, .error-logs-search > button svg { width: 14px; height: 14px; }
+.history-filter-row { grid-column: 1 / -1; gap: 6px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .85fr); }
+.history-layout-toggle { padding: 0; }
+.history-gallery { padding: 10px; }
+.history-gallery.grid-layout { gap: 10px; }
+.settings-title { min-height: 42px; padding: 5px 10px; }
+.settings-mode-tabs { padding: 2px 8px 0; gap: 2px; }
+.settings-mode-tabs .settings-mode-tab { height: 36px; min-height: 36px; gap: 5px; padding: 0 4px; }
+.settings-panel { min-width: 0; padding: 8px 10px; }
+.settings-scroll-panel { padding: 0; min-width: 0; }
+.settings-form { margin: 0 0 10px; padding: 10px; border-radius: var(--radius-lg); }
+#imageSettingsPanel:has(.unified-supplier-workspace:not(.is-unavailable)) { padding: 8px 10px; margin: 0; }
+.unified-supplier-workspace { margin: 0; display: flex; flex-direction: column; }
+#unifiedInlineEditor { width: 100%; box-sizing: border-box; }
+.unified-workspace-head { margin-bottom: 8px; gap: 8px; }
+.unified-workspace-head > div { min-width: 0; }
+.unified-workspace-head > div > strong { font-size: 14px; }
+.unified-workspace-head > div > span { font-size: 11px; }
+.unified-supplier-list { margin-top: 8px; gap: 8px; display: flex; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 2px; }
+.unified-supplier-card { padding: 10px; border-radius: var(--radius-lg); }
+.unified-supplier-card { flex: 0 0 min(300px, 82vw); }
+
+/* Supplier manager: self-made snap carousel of overview cards + a live editor
+   area below that follows the selected supplier. */
+.supplier-manager { display: flex; flex-direction: column; min-width: 0; }
+.supplier-carousel-frame { position: relative; min-width: 0; padding-top: 8px; }
+/* New supplier: black round + at the top-right, above the next-switch nav. */
+.supplier-add-btn { position: absolute; top: 0; right: 0; z-index: 4; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 999px; background: var(--foreground-intense); color: var(--primary-foreground); cursor: pointer; box-shadow: var(--shadow-sm); transition: transform .12s ease, opacity .15s ease; }
+.supplier-add-btn:hover { transform: scale(1.08); }
+.supplier-add-btn:active { transform: scale(.96); }
+.supplier-carousel { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 8px 0 0; }
+.supplier-carousel-viewport { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.supplier-carousel-track { display: flex; will-change: transform; transition: transform .3s cubic-bezier(.22, .61, .36, 1); }
+.supplier-carousel-slide { flex: 0 0 100%; min-width: 100%; box-sizing: border-box; padding: 2px; }
+.supplier-carousel-nav { flex: 0 0 30px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--background); color: var(--foreground-emphasis); box-shadow: var(--shadow-xs); cursor: pointer; transition: background .15s ease, border-color .15s ease, opacity .15s ease; }
+.supplier-carousel-nav:hover:not(:disabled) { background: var(--background-muted); border-color: var(--border-emphasis); }
+.supplier-carousel-nav:disabled { opacity: .35; cursor: default; }
+.supplier-carousel-dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.supplier-carousel-dot { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: background .15s ease, width .15s ease; }
+.supplier-carousel-dot.is-active { width: 18px; background: var(--primary); }
+.supplier-carousel-counter { margin-top: 4px; text-align: center; font-size: 11px; color: var(--foreground-muted); }
+.unified-supplier-list { display: block !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; }
+
+/* Overview card: icon, name, address, model stats + aggregated health. */
+.unified-supplier-card { width: 100%; box-sizing: border-box; border-radius: var(--radius-xl); border: 1px solid var(--border); background: var(--background); box-shadow: var(--shadow-xs); padding: 14px; }
+.unified-supplier-overview { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.unified-supplier-icon-badge { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background-subtle); overflow: hidden; flex: 0 0 44px; }
+.unified-supplier-icon-badge .unified-supplier-icon-image { width: 100%; height: 100%; object-fit: cover; }
+.unified-supplier-lucide { display: inline-grid; place-items: center; color: var(--foreground-emphasis); }
+.unified-supplier-lucide svg { width: 22px; height: 22px; }
+.unified-supplier-identity { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
+.unified-supplier-identity > strong { font-size: 15px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unified-supplier-address { font-size: 12px; color: var(--foreground-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unified-supplier-meta { display: flex; align-items: center; gap: 10px; margin-top: 2px; flex-wrap: wrap; }
+.unified-supplier-stats { font-size: 11px; color: var(--foreground-emphasis); }
+.unified-supplier-card-actions { display: flex; gap: 2px; flex: 0 0 auto; }
+.unified-supplier-card-actions .icon-button { width: 28px; height: 28px; min-width: 28px; color: var(--foreground-muted); }
+.unified-supplier-card-actions .icon-button:hover { color: var(--foreground-intense); background: var(--background-muted); }
+.unified-supplier-card-actions .danger-button:hover { color: var(--error, #dc2626); background: color-mix(in srgb, var(--error, #dc2626) 10%, transparent); }
+
+/* Health dot: text + colored dot on cards, dot-only on group summaries. */
+.unified-health-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--foreground-muted); }
+.unified-health-dot > i { width: 8px; height: 8px; border-radius: 999px; background: var(--border-strong); flex: 0 0 8px; }
+.unified-health-dot.health-available > i { background: #16a34a; }
+.unified-health-dot.health-degraded > i { background: #d97706; }
+.unified-health-dot.health-failed > i { background: #dc2626; }
+.unified-health-dot.health-unknown > i { background: var(--border-strong); }
+
+/* Below-the-carousel editor area: framed group cards + identity/new forms. */
+.unified-supplier-below { min-width: 0; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.unified-editor-card { min-width: 0; padding: 14px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--background); box-shadow: var(--shadow-xs); display: flex; flex-direction: column; gap: 10px; }
+.unified-editor-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.unified-editor-card-head > strong { font-size: 14px; }
+.unified-group-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.unified-group-empty { font-size: 12px; color: var(--foreground-muted); text-align: center; padding: 8px; }
+/* Container card (legacy .unified-group-card was a single flex-row button). */
+.unified-group-card { display: block; min-width: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); overflow: hidden; cursor: default; transition: border-color .15s ease, box-shadow .24s ease; }
+.unified-group-card:hover { border-color: var(--border); background: var(--background); }
+.unified-group-card.is-open { border-color: var(--border-emphasis); box-shadow: var(--shadow-xs); }
+.unified-group-card-summary { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; }
+.unified-group-summary-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 3px 2px; background: transparent; border: 0; cursor: pointer; text-align: start; border-radius: var(--radius-sm); }
+.unified-group-summary-main:hover { background: var(--background-subtle); }
+.unified-group-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: var(--radius-md); background: var(--background-muted); color: var(--foreground-emphasis); }
+.unified-group-copy { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 1px; }
+.unified-group-copy > strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unified-group-copy > small { font-size: 11px; color: var(--foreground-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unified-group-chevron-btn { flex: 0 0 auto; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: var(--foreground-muted); cursor: pointer; border-radius: var(--radius-sm); }
+.unified-group-chevron-btn:hover { background: var(--background-muted); color: var(--foreground-intense); }
+.unified-group-chevron { transition: transform .2s ease; }
+.unified-group-card.is-open .unified-group-chevron { transform: rotate(180deg); }
+/* Enable switch (left of the health dot). */
+.unified-group-switch { flex: 0 0 auto; position: relative; width: 32px; height: 18px; padding: 0; border: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: background .18s ease; }
+.unified-group-switch.is-on { background: #16a34a; }
+.unified-group-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 999px; background: #fff; box-shadow: var(--shadow-xs); transition: transform .18s ease; }
+.unified-group-switch.is-on .unified-group-switch-knob { transform: translateX(14px); }
+.unified-group-card.is-disabled { opacity: .68; }
+.unified-group-card.is-disabled .unified-group-icon { background: var(--background-subtle); color: var(--foreground-subtle); }
+.unified-health-dot.health-off > i { background: var(--border-strong); }
+/* Height animation via grid-template-rows 0fr↔1fr (both directions ease). */
+.unified-group-card-body-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s cubic-bezier(.32, .72, 0, 1); }
+.unified-group-card-body-wrap[data-open] { grid-template-rows: 1fr; }
+.unified-group-card-body { overflow: hidden; min-height: 0; padding: 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); }
+/* 收起时内容淡出（比高度动画略快），让结束时的卸载 / 桥接 select 销毁落在已透明的内容上，
+   消除收起末尾的一下顿挫；展开时不定义该过渡，内容随高度即时显现，避免每次打开都淡入。 */
+.unified-group-card-body-wrap:not([data-open]) .unified-group-card-body { opacity: 0; transition: opacity .16s ease; }
+.unified-group-editor { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.unified-editor-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.unified-editor-actions-spacer { flex: 1 1 auto; }
+.unified-supplier-footer { display: flex; justify-content: center; gap: 8px; padding: 4px 0 12px; flex-wrap: wrap; }
+.unified-connection-status { font-size: 12px; color: var(--foreground-muted); align-self: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unified-connection-status[data-ok='true'] { color: var(--success, #16a34a); }
+.unified-connection-status[data-ok='false'] { color: var(--error, #dc2626); }
+.unified-group-connection-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.unified-other-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border); }
+/* Icon upload: a clickable drop tile (preview + upload badge) + name/buttons. */
+.unified-supplier-icon-editor { display: flex; align-items: stretch; gap: 10px; min-width: 0; }
+.unified-supplier-icon-drop { position: relative; flex: 0 0 56px; width: 56px; height: 56px; padding: 0; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); background: var(--background-subtle); cursor: pointer; overflow: hidden; display: grid; place-items: center; transition: border-color .15s ease, background .15s ease; }
+.unified-supplier-icon-drop:hover { border-color: var(--primary); background: var(--background-muted); }
+.unified-supplier-icon-drop .unified-supplier-icon-image { width: 100%; height: 100%; object-fit: cover; }
+.unified-supplier-icon-hint { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 999px; background: var(--foreground-intense); color: var(--primary-foreground); }
+.unified-supplier-icon-controls { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.unified-supplier-icon-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+/* 图标预览（不再是上传按钮）：实线静态框，无 hover/指针。 */
+.unified-supplier-icon-drop.is-preview { border-style: solid; cursor: default; }
+.unified-supplier-icon-drop.is-preview:hover { border-color: var(--border-strong); background: var(--background-subtle); }
+/* 从图标库选择：可滚动的图标网格。 */
+.unified-supplier-icon-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 6px; margin-top: 2px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--background-subtle); max-height: 168px; overflow-y: auto; }
+.unified-icon-option { display: grid; place-items: center; width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground-muted); cursor: pointer; transition: border-color .12s ease, background .12s ease, color .12s ease; }
+.unified-icon-option:hover { border-color: var(--primary); color: var(--foreground-intense); background: var(--background-muted); }
+.unified-icon-option.is-active { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.unified-icon-option .unified-supplier-lucide { display: grid; place-items: center; }
+.unified-icon-option svg { width: 17px; height: 17px; }
+/* 供应商概览卡：填了官网/baseUrl 时地址可点击跳转官网。 */
+.unified-supplier-address.is-link { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer; color: var(--primary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unified-supplier-address.is-link:hover { text-decoration: underline; }
+.unified-supplier-address.is-link svg { flex: 0 0 auto; opacity: .8; }
+/* 弹性容器里的匿名文本不会省略也不会收缩；包一层才能 ellipsis 并保住外链图标。 */
+.unified-supplier-address-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* 供应商信息折叠卡：摘要图标沿用图片/lucide 预览并裁切到图标位形状。 */
+.unified-identity-icon { overflow: hidden; }
+.unified-identity-icon .unified-supplier-icon-image { width: 100%; height: 100%; object-fit: cover; }
+.unified-identity-card.is-persistent { background: var(--background); }
+.unified-inline-actions { display: flex; align-items: center; gap: 8px; }
+.unified-inline-actions-spacer { flex: 1 1 auto; }
+.unified-group-editor, .unified-model-editor, .unified-model-rows, .unified-inline-grid > *, .settings-form-grid > * { min-width: 0; }
+.settings-sheet input:not([type='checkbox']):not([type='radio']), .settings-sheet textarea { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.unified-model-grid-head, .unified-model-row { grid-template-columns: minmax(0, 1fr) 66px minmax(0, .8fr) 28px; }
+.unified-inline-actions { flex-wrap: wrap; }
+#concurrencySettingsPanel .strategy-choice { min-height: 54px; padding: 7px 8px; gap: 6px; }
+#concurrencySettingsPanel .strategy-choice { grid-template-columns: 16px minmax(0, 1fr); }
+#concurrencySettingsPanel .strategy-choice > svg { display: none; }
+#concurrencySettingsPanel .strategy-choice strong { font-size: 12px; }
+#concurrencySettingsPanel .strategy-choice small { font-size: 11px; line-height: 1.4; }
+.settings-actions:empty { display: none; }
+/* 隐式 auto 列会被长路径/不换行按钮的 min-content 撑宽，挤出卡片；钉成 minmax(0,1fr)。 */
+.output-directory-form { grid-template-columns: minmax(0, 1fr); }
+.output-directory-actions { flex-wrap: nowrap; align-items: center; }
+.output-directory-actions > .picgen-action { flex: 1 1 0; min-width: 0; padding-inline: 10px; white-space: nowrap; }
+.output-directory-actions > .picgen-action > span { overflow: hidden; text-overflow: ellipsis; }
+.routing-ranking { padding: 8px; }
+.routing-ranking td, .routing-ranking th { padding: 6px 4px; }
+.picgen-action.settings-help-icon { width: 18px; height: 18px; min-width: 0; padding: 0; }
+.picgen-action.settings-help-icon svg { width: 14px; height: 14px; }
+.appica-ratio-value { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.appica-ratio-shape { display: inline-block; flex: 0 0 auto; border: 1.5px solid currentColor; border-radius: 2px; opacity: .65; }
+.model-value { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 触发器里的 inline-flex 是原子行内盒，外层 ellipsis 截不动它；改成受宽度约束的 flex，让内层文字自己省略。 */
+.appica-select-trigger .appica-select-value:has(> .model-value) { display: block; }
+.appica-select-trigger .model-value { display: flex; max-width: 100%; }
+.model-brand-mark { display: block; width: 15px; height: 15px; flex: 0 0 15px; padding: 2px; box-sizing: border-box; border-radius: 50%; }
+.model-brand-google .model-brand-mark { color: #4285f4; background: color-mix(in srgb, #4285f4 12%, transparent); }
+.model-brand-openai .model-brand-mark { color: #111827; background: #eef0f2; font-size: 10px; }
+.model-brand-grok .model-brand-mark { background: #111827; }
+.model-brand-doubao .model-brand-mark { background: #fff2e8; }
+.picgen-toast-viewport { --gap: .5rem; --peek: 1.25rem; }
+.picgen-toast-viewport [data-slot='toast'] { min-height: 48px; }
+#pinWindowBtn[aria-pressed='true'] { background: var(--background-muted); color: var(--foreground-intense); }
+body.edge-hidden .collapsed-launcher.picgen-action { width: 100%; height: 100%; min-width: 0; padding: 0; border-radius: 0; background: var(--primary); box-shadow: none; }
+body.edge-hidden .launcher-mark { display: none; }
+body.edge-hidden .collapsed-launcher::after { content: ''; width: 3px; height: 26px; border-radius: 3px; background: var(--primary-foreground); opacity: .8; }
+body.edge-hidden[data-dock-edge='left'] .collapsed-launcher { border-radius: 0 6px 6px 0; }
+body.edge-hidden[data-dock-edge='right'] .collapsed-launcher { border-radius: 6px 0 0 6px; }
+@media (min-width: 620px) {
+  .history-toolbar { grid-template-columns: minmax(120px, 1fr) minmax(260px, 1.6fr) auto; }
+  .history-filter-row { grid-column: 2; grid-row: 1; }
+  .history-layout-toggle { grid-column: 3; grid-row: 1; }
+}
+@media (max-width: 520px) {
+  .unified-inline-grid { grid-template-columns: minmax(0, 1fr); }
+  .unified-model-grid-head { display: none; }
+  .unified-model-row { grid-template-columns: minmax(0, 1fr) 70px 28px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .unified-model-row .unified-model-name { grid-column: 1 / 3; }
+  .unified-model-row > .icon-button { grid-column: 3; grid-row: 1; }
+  .unified-model-row > .appica-select-field { grid-column: 1; grid-row: 2; }
+  .unified-model-row .unified-model-price { grid-column: 2 / 4; grid-row: 2; }
+  .settings-mode-tabs .settings-mode-tab { gap: 4px; padding: 0 4px; }
+}
+@media (max-width: 400px) {
+  .settings-mode-tabs .settings-mode-tab svg { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

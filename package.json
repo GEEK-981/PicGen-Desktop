@@ -1,0 +1,103 @@
+{
+  "name": "nanobanana2",
+  "version": "2.3.20",
+  "description": "PicGen AI image generator",
+  "author": "PicGen",
+  "main": "electron-main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "desktop": "electron .",
+    "test": "node scripts/run-tests.js",
+    "test:packaged": "node scripts/packaged-smoke.js",
+    "build:win": "node scripts/build-portable.js --dir",
+    "build:win:portable": "node scripts/build-portable.js",
+    "build:ui": "node scripts/build-icons.js && node scripts/build-ui-layout.js && vite build",
+    "prestart": "npm run build:ui && node scripts/fetch-models.js --optional",
+    "predesktop": "npm run build:ui && node scripts/fetch-models.js --optional",
+    "prebuild:win": "npm run build:ui && node scripts/fetch-models.js",
+    "prebuild:win:portable": "npm run build:ui && node scripts/fetch-models.js",
+    "fetch:models": "node scripts/fetch-models.js"
+  },
+  "dependencies": {
+    "@appica/ui-react": "1.1.0",
+    "bottleneck": "2.19.5",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "eventsource-parser": "3.0.6",
+    "express": "^4.18.2",
+    "form-data": "^4.0.0",
+    "http-proxy-agent": "7.0.2",
+    "https-proxy-agent": "7.0.6",
+    "konva": "10.7.0",
+    "lucide": "1.34.0",
+    "lucide-react": "1.42.0",
+    "node-fetch": "^2.7.0",
+    "onnxruntime-node": "1.24.3",
+    "opossum": "10.0.0",
+    "perfect-freehand": "1.2.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-konva": "19.2.7",
+    "sharp": "0.34.5",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "electron": "42.10.0",
+    "electron-builder": "26.15.3",
+    "tailwindcss": "4.3.3",
+    "vite": "8.2.2"
+  },
+  "build": {
+    "appId": "com.picgen.desktop",
+    "productName": "PicGen",
+    "asar": true,
+    "directories": {
+      "output": "dist/release"
+    },
+    "files": [
+      "frontend-dist/**",
+      "*.js",
+      "*.html",
+      "*.css",
+      "imageAdapters/**/*.js",
+      "package.json",
+      "!diagnose*.js",
+      "!scripts/**",
+      "!test/**",
+      "!ref-2.1.9-source/**",
+      "!**/.env",
+      "!**/.env.*",
+      "assets/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/x64/{DirectML,dxcompiler,dxil}.dll",
+      "!node_modules/onnxruntime-node/{lib,script}/**",
+      "!node_modules/onnxruntime-{node,common}/**/*.{map,ts}",
+      "!node_modules/onnxruntime-common/{lib,dist/esm}/**"
+    ],
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/bin/napi-v6/win32/x64/*"
+    ],
+    "extraResources": [
+      {
+        "from": "models/dinov2-small-q8.onnx",
+        "to": "models/dinov2-small-q8.onnx"
+      },
+      {
+        "from": "licenses",
+        "to": "licenses"
+      }
+    ],
+    "afterPack": "scripts/after-pack.js",
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "signExecutable": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "icon": "assets/picgen.ico"
+    }
+  }
+}

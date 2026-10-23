@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25">
+  <!-- 1 元硬币正面线稿，直径 25 mm：外缘、滚花刻线、内圈和面值浮雕。PicGen 原创。 -->
+  <circle cx="12.5" cy="12.5" r="12.2" fill="none" stroke="#000000" stroke-width="0.6"/>
+  <circle cx="12.5" cy="12.5" r="10.4" fill="none" stroke="#000000" stroke-width="0.4"/>
+  <path d="M12.5 0.5 V1.9 M12.5 23.1 V24.5 M0.5 12.5 H1.9 M23.1 12.5 H24.5 M4 4 L5 5 M21 4 L20 5 M4 21 L5 20 M21 21 L20 20 M7.9 1.4 L8.4 2.7 M17.1 1.4 L16.6 2.7 M7.9 23.6 L8.4 22.3 M17.1 23.6 L16.6 22.3 M1.4 7.9 L2.7 8.4 M1.4 17.1 L2.7 16.6 M23.6 7.9 L22.3 8.4 M23.6 17.1 L22.3 16.6" stroke="#000000" stroke-width="0.25"/>
+  <path d="M11 8.2 L13.4 6.8 L13.4 17.6 M10.4 17.6 H16" fill="none" stroke="#000000" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

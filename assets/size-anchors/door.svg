@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 2030">
+  <!-- 室内门线稿（门洞 900 × 2030 mm 取门扇 + 门框右侧可见部分：门框、面板、把手），不含人物。PicGen 原创。 -->
+  <g transform="translate(-990 0)">
+    <g fill="none" stroke="#000000" stroke-linejoin="round">
+      <path d="M1000 2030 V20 H1540 V2030" stroke-width="30"/>
+      <rect x="1070" y="90" width="400" height="1940" stroke-width="16"/>
+      <rect x="1130" y="170" width="280" height="700" stroke-width="12"/>
+      <rect x="1130" y="990" width="280" height="900" stroke-width="12"/>
+    </g>
+    <g fill="#000000">
+      <circle cx="1110" cy="1060" r="26"/>
+      <rect x="1102" y="1050" width="70" height="20" rx="8"/>
+    </g>
+  </g>
+</svg>

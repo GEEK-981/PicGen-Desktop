@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <title>PicGen 侧边签</title>
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+        button { display: grid; place-items: center; position: absolute; left: 0; top: 0; width: 12px; height: 100%; padding: 0; border: 0; border-radius: 5px; background: #111827; cursor: pointer; }
+        button::after { content: ''; width: 3px; height: 26px; border-radius: 3px; background: #fff; opacity: .8; }
+        body[data-edge='right'] button { left: auto; right: 0; }
+        button:hover { background: #374151; }
+    </style>
+</head>
+<body>
+    <button id="reveal" aria-label="展开 PicGen" title="悬停展开 PicGen；拖动展开后的标题栏可取消贴边"></button>
+    <script>document.getElementById('reveal').addEventListener('click', () => window.picgenDesktop.setExpanded(true));</script>
+</body>
+</html>

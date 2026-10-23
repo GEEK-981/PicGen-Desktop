@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="bg" cx=".6" cy="0" r="1"><stop stop-color="#1b2345"/><stop offset=".55" stop-color="#050d29"/><stop offset="1" stop-color="#030616"/></radialGradient>
+    <linearGradient id="back" x2="1" y2="1"><stop stop-color="#ffae54"/><stop offset=".5" stop-color="#ff5c8e"/><stop offset="1" stop-color="#b32eef"/></linearGradient>
+    <linearGradient id="purple" x2=".6" y2="1"><stop stop-color="#8073ff"/><stop offset=".5" stop-color="#9238fa"/><stop offset="1" stop-color="#b722ca"/></linearGradient>
+    <linearGradient id="frame" x2="1" y2="1"><stop stop-color="white"/><stop offset=".6" stop-color="#faf8fe"/><stop offset="1" stop-color="#d9bbf5"/></linearGradient>
+    <linearGradient id="sky" x2="1" y2=".7"><stop stop-color="#00bcef"/><stop offset=".45" stop-color="#297bfa"/><stop offset="1" stop-color="#e250f0"/></linearGradient>
+    <linearGradient id="mountain" x2=".9" y2=".6"><stop stop-color="#5bc4ff"/><stop offset="1" stop-color="#5223e9"/></linearGradient>
+    <linearGradient id="front" x2="1" y2="1"><stop stop-color="#048dff"/><stop offset="1" stop-color="#252ae8"/></linearGradient>
+    <linearGradient id="wand" x1="0" x2="1"><stop stop-color="#0632b7"/><stop offset=".3" stop-color="#283e86"/><stop offset=".72" stop-color="#101536"/><stop offset="1" stop-color="#030720"/></linearGradient>
+    <linearGradient id="tip" x1="0" x2="1"><stop stop-color="#88f9ff"/><stop offset=".45" stop-color="#fff"/><stop offset="1" stop-color="#f4a7f4"/></linearGradient>
+    <linearGradient id="warm" x2="1" y2="1"><stop stop-color="#fff895"/><stop offset=".4" stop-color="#ffd156"/><stop offset="1" stop-color="#ff53b2"/></linearGradient>
+    <linearGradient id="cool" x2="1" y2="1"><stop stop-color="#63ffff"/><stop offset=".5" stop-color="#479aff"/><stop offset="1" stop-color="#8639f9"/></linearGradient>
+    <clipPath id="photo"><rect x="124" y="126" width="210" height="189" rx="20"/></clipPath>
+    <filter id="shadow" x="-30%" y="-30%" width="170%" height="170%"><feDropShadow dx="0" dy="7" stdDeviation="7" flood-color="#000719" flood-opacity=".4"/></filter>
+  </defs>
+  <circle cx="256" cy="256" r="254" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <rect x="72" y="203" width="214" height="199" rx="24" transform="rotate(-33 179 302)" fill="url(#back)"/>
+    <rect x="78" y="165" width="229" height="213" rx="24" transform="rotate(-27 192 271)" fill="url(#purple)"/>
+    <g transform="rotate(-14 229 226)">
+      <rect x="100" y="103" width="258" height="237" rx="29" fill="#b09cde"/>
+      <rect x="100" y="99" width="258" height="237" rx="29" fill="url(#frame)"/>
+      <g clip-path="url(#photo)">
+        <rect x="124" y="126" width="210" height="189" fill="url(#sky)"/>
+        <circle cx="182" cy="181" r="30" fill="#e9f6ff"/>
+        <path d="M155 315 244 222Q258 207 271 224L353 324Z" fill="url(#mountain)"/>
+        <path d="M106 319 177 239Q190 223 204 240L272 328Z" fill="url(#front)"/>
+      </g>
+    </g>
+  </g>
+  <path d="M392 85C402 119 402 119 432 129Q436 131 432 133C402 143 402 143 392 173Q390 177 388 173C378 143 378 143 350 133Q346 131 350 129C378 121 380 114 388 85Q390 81 392 85Z" fill="url(#warm)"/>
+  <path d="M445 152C452 174 454 176 471 181Q475 183 471 185C453 191 450 194 445 209Q443 212 441 209C436 192 433 189 418 185Q414 183 418 181C434 176 438 171 441 152Q443 149 445 152Z" fill="url(#cool)"/>
+  <path d="M445 230C449 243 451 245 460 248Q463 250 460 252C450 255 448 258 445 267Q443 270 441 267C438 258 436 255 427 252Q424 250 427 248C437 245 439 242 441 230Q443 227 445 230Z" fill="#ae62ff"/>
+  <g transform="rotate(38 320 324)" filter="url(#shadow)">
+    <rect x="298" y="182" width="44" height="272" rx="22" fill="url(#wand)"/>
+    <path d="M298 205A22 22 0 0 1 342 205V266H298Z" fill="url(#tip)"/>
+    <path d="M298 266H302V428Q302 446 312 451Q298 449 298 431Z" fill="#3e80ef" fill-opacity=".7"/>
+  </g>
+</svg>

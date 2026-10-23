@@ -1,0 +1,6 @@
+/* 底栏按钮横排：窄窗口下 Appica 默认竖排，会挤掉一半的预览区 */
+.picgen-annotation [data-slot='dialog-footer'],
+.picgen-size-ref [data-slot='dialog-footer'] { flex-direction: row; flex-wrap: nowrap; gap: 6px; }
+.picgen-annotation [data-slot='dialog-footer'] > *,
+.picgen-size-ref [data-slot='dialog-footer'] > * { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+.picgen-annotation [data-slot='dialog-footer'] > [id='annotationSubmitBtn'] { flex-grow: 2; }

@@ -1,0 +1,610 @@
+/* Compact desktop surfaces and bounded, incremental media previews. */
+.tabs-bar { padding: 5px 8px; align-items: center; }
+.picgen-sequence-list { height: 30px; min-height: 30px; padding: 3px; border: 1px solid var(--border-muted); }
+.picgen-sequence-list .tab-button { height: 22px; min-height: 22px; padding-block: 0; }
+.picgen-sequence-list .tab-close { width: 16px; height: 16px; }
+.tabs-bar .new-tab-button { height: 28px; width: 28px; }
+.appica-ratio-value { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 7px; width: 100%; }
+.appica-ratio-icon { width: 24px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.appica-ratio-label { text-align: left; }
+.ratio-picker-menu {
+  width: min(360px, calc(100vw - 24px)) !important;
+  min-width: min(280px, calc(100vw - 24px));
+}
+.ratio-picker-menu [role='listbox'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px;
+}
+.ratio-picker-group {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ratio-picker-group-square { grid-column: 1 / -1; }
+.ratio-picker-group-special { grid-column: 1 / -1; }
+.ratio-picker-group-square .appica-select-option { width: 100%; }
+.ratio-picker-group [data-slot='select-group-label'] {
+  padding: 3px 8px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.ratio-picker-group .appica-select-option {
+  min-height: 30px;
+  padding: 6px 8px;
+}
+.model-brand-mark { width: 16px; height: 16px; flex: 0 0 16px; object-fit: contain; }
+.model-value > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.history-search { margin-top: 4px; }
+/* 搜索框尾部按钮（清空、以图搜图）按需出现：列随按钮数增减，不换行。 */
+.history-search { grid-template-columns: 18px minmax(0, 1fr); grid-auto-flow: column; grid-auto-columns: 24px; }
+.history-search.image-drop-active { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, .18); }
+/* 工具栏一行：搜索框 | 筛选、排序 | 布局。筛选面板、条件标签和相似工具栏各占整行。 */
+.history-toolbar { grid-template-columns: minmax(0, 1fr) auto auto; }
+.history-search { grid-column: 1; grid-row: 1; }
+.history-filter-controls-host { grid-column: 2; grid-row: 1; }
+.history-layout-toggle { grid-column: 3; grid-row: 1; }
+.history-filter-panel-host, .history-similar-toolbar { grid-column: 1 / -1; }
+.history-filter-panel-host:empty { display: none; }
+.history-filter-controls { display: flex; align-items: center; gap: 2px; }
+#historyFilterToggle, #historySortButton { height: 28px; min-height: 0; padding: 0 7px; gap: 4px; font-size: 12px; }
+#historyFilterToggle svg, #historySortButton svg { width: 14px; height: 14px; }
+.history-filter-badge { min-width: 16px; height: 16px; padding: 0 4px; display: inline-grid; place-items: center; border-radius: 8px; background: #2563eb; color: #fff; font-size: 10px; font-weight: 600; line-height: 1; }
+.history-filter-panel-host { display: grid; gap: 6px; }
+.history-filter-panel { position: relative; display: grid; padding: 8px 30px 8px 8px; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; background: var(--background-muted, #f8fafc); }
+.history-filter-collapse { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; min-height: 0; padding: 0; }
+.history-filter-collapse svg { width: 14px; height: 14px; }
+.history-filter-panel-body { display: grid; gap: 8px; }
+.history-filter-stack { display: grid; gap: 6px; }
+.history-filter-field { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.history-filter-label { flex: 0 0 26px; line-height: 26px; color: var(--foreground-muted, #6b7280); font-size: 12px; }
+.history-filter-segments { flex-wrap: wrap; gap: 4px; min-width: 0; }
+.history-filter-segments [data-slot="toggle"] { height: 26px; padding: 0 9px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border, #d8dce3); border-radius: 13px; background: var(--background, #fff); color: var(--foreground, #394150); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.history-filter-segments [data-slot="toggle"]:hover { border-color: #93c5fd; }
+.history-filter-segments [data-slot="toggle"][data-pressed] { border-color: #2563eb; background: rgba(37, 99, 235, .1); color: #1d4ed8; font-weight: 600; }
+.history-filter-segments [data-slot="toggle"]:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+.history-filter-count { color: var(--foreground-muted, #6b7280); font-size: 10px; font-weight: 400; }
+.history-vendor-mark { width: 14px; height: 14px; flex: none; object-fit: contain; }
+.history-date-range { margin-left: 32px; max-width: 300px; }
+.history-filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.history-filter-chips [data-slot="chip"] { gap: 4px; }
+#historyClearFiltersBtn { height: 22px; min-height: 0; margin-left: auto; padding: 0 6px; font-size: 11px; }
+/* 窄窗口把宽度留给搜索框：排序只留图标（悬停提示仍写明当前排序）。 */
+@media (max-width: 539px) { .history-sort-label { display: none; } }
+.history-header { min-height: 40px; padding-block: 4px; }
+.history-toolbar { padding-bottom: 5px; }
+.collapsed-launcher.picgen-action { width: 60px; height: 60px; min-width: 0; padding: 0; border: 0; border-radius: 50%; overflow: visible; background: transparent; box-shadow: none; }
+.collapsed-launcher.picgen-action::before { display: none; }
+.launcher-logo { width: 100%; height: 100%; display: block; border-radius: 50%; pointer-events: none; }
+.collapsed-notification-badge { position: absolute; top: 2px; right: 2px; z-index: 2; min-width: 18px; height: 18px; padding: 0 5px; border: 2px solid var(--background); border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: #2563eb; font-size: 10px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
+.collapsed-notification-badge[data-kind='error'] { background: #dc2626; }
+.collapsed-notification-badge[data-kind='warning'] { background: #d97706; }
+.collapsed-notification-badge[data-kind='success'], .collapsed-notification-badge[data-kind='info'] { background: #2563eb; }
+.app-mark { background: transparent; border-radius: 50%; }
+.app-mark img { width: 100%; height: 100%; }
+body.collapsed { background: transparent; }
+/* 展开/收起：主进程只做一次原生 setBounds，视觉过渡交给这里的 GPU 合成动画，
+   消除逐帧原生 resize 导致整页重排的卡顿。动画不用 fill 模式，结束即回落到
+   transform:none —— 避免残留 transform 破坏面板内 position:fixed 弹层的定位。 */
+body:not(.collapsed) .desktop-panel { animation: desktopPanelIn 190ms cubic-bezier(.2, .72, .2, 1); transform-origin: 100% 100%; }
+@keyframes desktopPanelIn { from { opacity: 0; transform: scale(.955); } to { opacity: 1; transform: scale(1); } }
+body.collapsed .collapsed-launcher.picgen-action { animation: launcherIn 150ms ease-out; }
+@keyframes launcherIn { from { opacity: 0; transform: scale(.62); } to { opacity: 1; transform: scale(1); } }
+body.edge-hidden .launcher-logo { display: none; }
+.pending-mask-panel { display: flex; gap: 10px; align-items: center; padding: 8px 10px; margin: 0 10px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--background-subtle); }
+.pending-mask-panel img { width: 52px; height: 52px; border-radius: 6px; object-fit: contain; }
+.pending-mask-panel > div { flex: 1; min-width: 0; display: grid; gap: 4px; font-size: 12px; }
+.pending-mask-panel span { color: var(--foreground-muted); }
+.prompt-stream-panel { padding: 10px; margin: 4px 10px 10px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background-subtle); min-width: 0; }
+.prompt-stream-heading, .prompt-stream-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+.prompt-stream-footer { color: var(--foreground-muted); margin-top: 6px; }
+.stream-text { max-height: 200px; overflow-y: auto; font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.stream-text [data-slot='text-animate'], .stream-text [data-slot='text-animate'] span { display: inline !important; white-space: pre-wrap !important; }
+.stream-text [data-slot='text-animate'] .sr-only { display: none !important; }
+.stream-waiting { color: var(--foreground-muted); font-size: 12px; }
+#reversePromptStream { margin: 0; }
+/* The stream panel is the live result surface. Keep the legacy textarea as
+   an editable fallback when the panel is hidden (initial state or "收起"),
+   but never show both copies at the same time. */
+.reverse-prompt-result-field #reversePromptStream:not([hidden]) ~ textarea,
+.reverse-prompt-result-field #reversePromptStream:not([hidden]) ~ [data-slot='textarea-wrapper'] { display: none; }
+.reverse-prompt-result-field #reversePromptStream[hidden] ~ textarea { display: block; }
+.reverse-prompt-result-field #reversePromptStream[hidden] ~ [data-slot='textarea-wrapper'] { display: flex; }
+/* Compact bottom-center notifications: keep the copy scannable without
+   letting long error details take over the workspace. */
+.picgen-toast-viewport { width: min(260px, calc(100vw - 24px)); --gap: .25rem; --peek: .625rem; }
+.picgen-toast-viewport [data-slot='toast'] { min-height: 30px; padding: 8px; border-radius: var(--radius-md); gap: 4px; }
+.picgen-toast-viewport [data-slot='toast-title'],
+.picgen-toast-viewport [data-slot='toast-description'] { font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.picgen-toast-title-content { display: flex; align-items: center; gap: 5px; min-width: 0; width: 100%; }
+.picgen-toast-title-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picgen-toast-repeat-badge { flex: 0 0 auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--error); color: var(--error-foreground); font-size: 10px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.picgen-toast-viewport [data-slot='toast-icon'] { height: 16px; }
+.picgen-toast-viewport [data-slot='toast-icon'] svg { width: 16px; height: 16px; }
+.picgen-toast-viewport [data-slot='toast-close'] { padding: 2px; margin-top: -2px; margin-inline-end: -2px; }
+.picgen-toast-viewport [data-slot='toast-close'] svg { width: 12px; height: 12px; }
+.batch-progress-head { min-width: 0; }
+.batch-progress-head span:first-child { flex: 1 1 0; min-width: 0; white-space: normal; overflow: hidden; overflow-wrap: anywhere; word-break: break-word; text-overflow: clip; }
+.batch-progress-head span:last-child { flex: 0 0 auto; min-width: 0; max-width: 45%; white-space: nowrap; text-align: right; }
+/* ===== 置顶设置窗（独立 BrowserWindow）内容样式 ===== */
+body[data-panel='prefs'] { background: transparent; overflow: hidden; }
+/* 透明窗四周留 16px 给阴影衰减：阴影必须在留白内自然淡出，否则会在窗口边界
+   被硬切出方形边缘。阴影参数（5+14×0.6≈13px 可见延伸）< 16px 留白。 */
+body[data-panel='prefs'] #root { padding: 16px; }
+.prefs-native-shell { border: 1px solid var(--border-emphasis); border-radius: 12px; background: var(--background); box-shadow: 0 5px 14px rgba(15, 23, 42, .22); padding: 12px; display: flex; flex-direction: column; gap: 10px; animation: prefsShellIn .16s ease-out; }
+@keyframes prefsShellIn { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+/* 收窗前奏：主进程发 hide-anim 后播放淡出，150ms 后才真正隐藏窗口。 */
+.prefs-native-shell.is-hiding { opacity: 0; transform: translateY(-4px) scale(.985); transition: opacity .13s ease-in, transform .13s ease-in; }
+.prefs-native-head { display: flex; align-items: baseline; gap: 8px; }
+.prefs-native-head strong { font-size: 13px; color: var(--foreground-intense); }
+.prefs-native-head small { flex: 1 1 auto; color: var(--foreground-muted); font-size: 11px; }
+.prefs-native-close { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--foreground-muted); cursor: pointer; align-self: center; }
+.prefs-native-close:hover { background: var(--background-muted); color: var(--foreground-intense); }
+.prefs-native-empty { margin: 0; padding: 10px 4px; color: var(--foreground-muted); font-size: 12px; }
+.prefs-native-shell select,
+.prefs-native-shell input:not([type='checkbox']):not([type='range']) { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--background); font-size: 12px; }
+/* 原生下拉箭头不占 padding，长供应商/模型名会压到箭头下；改自绘箭头并给它留位。 */
+.prefs-native-shell select { appearance: none; min-width: 0; padding-right: 26px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    background: var(--background) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center; }
+.prefs-native-image { display: flex; flex-direction: column; gap: 10px; }
+.prefs-native-image .prefs-slider-row { margin: 0; }
+
+body[data-preview='true'] { background: transparent; overflow: hidden; }
+body[data-preview='true'] #root { padding: 4px; }
+.picgen-preview-card { width: 100%; height: 100%; --card-radius: 18px; }
+.picgen-preview-card .picgen-preview-media { flex: 1; min-height: 0; background: var(--background-subtle); }
+.picgen-preview-card .picgen-preview-media img { width: 100%; height: 100%; object-fit: contain; }
+.picgen-preview-caption { flex: 0 0 auto; padding: 10px 12px 4px; }
+.picgen-preview-meta { display: flex; flex-wrap: wrap; gap: 5px 18px; font-size: 12px; line-height: 1.5; }
+.picgen-preview-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.image-hover-preview { padding: 0; border: 0; background: transparent; box-shadow: var(--shadow-lg); }
+/* Similar images (v3.1). Rows are controller-owned <details> in a flex column: flex:none plus
+   overflow:clip beats the legacy-layer overflow:hidden that let rows overlap (final.md §3.8, D1).
+   A collapsed row is ~124 px (title, meta, a 5-cell strip of ~68 px squares), so 5 fit at 460×800. */
+.similar-layout { display: flex; flex-direction: column; gap: 8px; }
+.similar-rows { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.similar-group { flex: none; overflow: clip; margin: 0; padding: 10px; min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 124px; }
+.similar-group[open] { content-visibility: visible; }
+.similar-group > summary { list-style: none; display: grid; gap: 6px; cursor: pointer; padding: 0; }
+.similar-group > summary::-webkit-details-marker { display: none; }
+.similar-group-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.similar-group-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.similar-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.similar-strip > * { aspect-ratio: 1; border-radius: 8px; overflow: hidden; }
+.similar-strip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.similar-group[open] .similar-strip { display: none; }
+.similar-group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.similar-group[data-provisional] { border-style: dashed; }
+.history-similar-toolbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.similar-status { flex: 1 1 100%; margin: 0; min-width: 0; font-size: 12px; color: var(--foreground-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.similar-progress { flex: 1 1 100%; height: 2px; border-radius: 999px; background: var(--background-muted); overflow: hidden; }
+.similar-progress > span { display: block; height: 100%; width: var(--p, 0%); background: var(--primary); transition: width .3s ease; }
+.similar-group-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.history-similar-toolbar .appica-select-field { flex: 1 1 0; min-width: 0; }
+.similar-singles-switch { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--foreground-muted); cursor: pointer; white-space: nowrap; }
+.similar-singles-switch input { margin: 0; }
+.similar-group-title { font-size: 13px; font-weight: 600; color: var(--foreground-intense); }
+.similar-group-count { flex: none; padding: 0 6px; border-radius: 999px; background: var(--background-muted); color: var(--foreground-emphasis); font-size: 11px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.similar-group-time { flex: none; font-size: 11px; color: var(--foreground-muted); }
+.similar-group-time:empty { display: none; }
+.similar-group-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 16px; color: var(--foreground-muted); }
+.similar-group-meta:empty { display: none; }
+.similar-strip-cell { display: block; background: var(--background-muted); }
+.similar-strip-more { display: grid; place-items: center; background: var(--background-muted); color: var(--foreground-muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.similar-action { height: 28px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--background); color: var(--foreground-emphasis); font-size: 12px; cursor: pointer; }
+.similar-action:hover { background: var(--background-muted); }
+.similar-more { display: block; margin: 8px auto 0; }
+.similar-part + .similar-part { margin-top: 10px; }
+.similar-part-title { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--foreground-muted); }
+.similar-new-pill { position: sticky; top: 0; z-index: 3; flex: none; align-self: center; padding: 4px 12px; border: 0; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); font-size: 12px; box-shadow: var(--shadow-xs); cursor: pointer; }
+.similar-empty { flex: none; margin: 0; padding: 24px 8px; text-align: center; font-size: 12px; color: var(--foreground-muted); }
+.similar-singles-footer { flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 0; font-size: 12px; color: var(--foreground-muted); }
+.similar-link-button { padding: 0; border: 0; background: none; color: var(--primary); font-size: 12px; cursor: pointer; }
+.similar-link-button:hover { text-decoration: underline; }
+.similar-singles-grid, .similar-find-grid { flex: none; }
+.similar-sentinel { flex: none; height: 1px; }
+/* 查找相似: [thumb] 与此图相似 · N 张 [仅同提示词] [只比画面] [✕] over a grid of scored results. */
+.find-similar-layout { display: flex; flex-direction: column; gap: 8px; }
+.similar-find-head { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.similar-find-thumb { flex: none; width: 40px; height: 40px; border-radius: var(--radius-sm); object-fit: cover; background: var(--background-muted); }
+.similar-find-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--foreground-intense); }
+.similar-toggle { flex: none; height: 26px; padding: 0 9px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--background); color: var(--foreground-emphasis); font-size: 12px; cursor: pointer; }
+.similar-toggle.active { border-color: var(--primary); background: var(--primary-subtle); color: var(--primary); }
+.similar-find-close { flex: none; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: var(--foreground-muted); font-size: 13px; cursor: pointer; }
+.similar-find-close:hover { background: var(--background-muted); color: var(--foreground-intense); }
+.similar-find-note { flex: none; margin: 0; font-size: 12px; color: var(--foreground-muted); }
+.similar-score { position: absolute; z-index: 1; right: 7px; bottom: 7px; padding: 1px 5px; border-radius: 4px; color: #fff; background: rgba(17, 24, 39, .66); font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; }
+.similar-chips { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
+.similar-chips:empty { display: none; }
+.similar-chip { padding: 0 5px; border-radius: 999px; background: var(--background-muted); color: var(--foreground-muted); font-size: 10px; line-height: 16px; white-space: nowrap; }
+/* Expanded drawer: four actions per row; 查找相似 and 移到回收站 share the last row. */
+.history-detail-actions #historyFindSimilarBtn, .history-detail-actions #historyDetailTrashBtn { grid-column: span 2; }
+/* 查找相似 parks the similar list in its wrapper (hidden, not destroyed); both wrappers are layout-neutral. */
+.similar-view, .similar-find-view { display: contents; }
+.similar-view[hidden], .similar-find-view[hidden] { display: none; }
+/* Usage badge (bottom-left; the checkbox is top-left, the ratio badge top-right). */
+.history-usage-badge { position: absolute; z-index: 1; left: 7px; bottom: 7px; display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px 1px 3px; border-radius: 999px; color: #fff; background: rgba(79, 70, 229, .88); font-size: 10px; line-height: 16px; pointer-events: auto; }
+.history-usage-badge svg { width: 11px; height: 11px; }
+.history-usage-badge b { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 主页最近图条的小图块：使用次数角标贴得更靠边 */
+.recent-item .history-usage-badge { left: 4px; bottom: 4px; }
+.similar-group-used { flex: none; display: inline-flex; align-items: center; gap: 2px; padding: 0 6px; border-radius: 999px; background: rgba(79, 70, 229, .12); color: rgb(79, 70, 229); font-size: 11px; line-height: 18px; }
+.similar-group-used[hidden] { display: none; }
+.similar-group-used svg { width: 11px; height: 11px; }
+.similar-group-used b { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Selection bar: 移到回收站 and the protected switch wrap below the count at 460 px. */
+.history-selection-bar { flex-wrap: wrap; row-gap: 4px; }
+.history-selection-actions { flex-wrap: wrap; justify-content: flex-end; align-items: center; min-width: 0; }
+.history-selection-actions #historyTrashBtn { gap: 4px; color: #dc2626; font-weight: 600; border-color: rgba(220, 38, 38, .45); }
+.history-selection-actions #historyTrashBtn:disabled { color: #f0a3a3; font-weight: 400; }
+.history-selection-actions #historyTrashBtn:hover:not(:disabled) { background: color-mix(in srgb, var(--error, #dc2626) 10%, transparent); }
+.history-selection-actions #historyTrashBtn svg { width: 13px; height: 13px; }
+.history-trash-protected { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--foreground-emphasis); white-space: nowrap; cursor: pointer; }
+.history-trash-protected[hidden] { display: none; }
+.history-trash-protected input { margin: 0; }
+/* Result strip: role=status, between the gallery and the selection bar (never a dialog). */
+.history-page { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+.history-trash-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); background: var(--background); font-size: 12px; }
+.history-trash-result[hidden] { display: none; }
+.history-trash-result-text { flex: 1 1 0; min-width: 0; color: var(--foreground-emphasis); line-height: 1.45; }
+.history-trash-result button { flex: none; }
+/* Home recent-images carousel: an Appica-style paged snap track flanked by
+   prev/next buttons with page dots underneath. Toggled by the carousel-mode
+   class, which the controller adds whenever the 10-image grid would overflow
+   the generation page — so these rules apply at any window height, not only
+   inside a short-window media query. */
+.recent-images.carousel-mode { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 4px; overflow: visible; min-height: 0; padding: 2px 0 0; }
+.recent-carousel-viewport { grid-column: 2; grid-row: 1; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scroll-behavior: smooth; overscroll-behavior-x: contain; scrollbar-width: none; }
+.recent-carousel-viewport::-webkit-scrollbar { display: none; }
+.recent-carousel-track { display: flex; gap: 8px; }
+.recent-images.carousel-mode .recent-item { flex: 0 0 calc((100% - 16px) / 3); width: auto; height: 104px; aspect-ratio: auto; margin: 0; scroll-snap-align: start; }
+.recent-images.carousel-mode .recent-item img { width: 100%; height: 100%; object-fit: cover; }
+.recent-carousel-nav { grid-row: 1; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--background); color: var(--foreground-emphasis); box-shadow: var(--shadow-xs); cursor: pointer; transition: background .15s ease, border-color .15s ease, opacity .15s ease; }
+.recent-carousel-nav:hover:not(:disabled) { background: var(--background-muted); border-color: var(--border-emphasis); }
+.recent-carousel-nav:disabled { opacity: .35; cursor: default; }
+.recent-carousel-nav svg { width: 16px; height: 16px; }
+.recent-carousel-prev { grid-column: 1; }
+.recent-carousel-next { grid-column: 3; }
+.recent-carousel-dots { grid-column: 1 / -1; grid-row: 2; display: flex; justify-content: center; gap: 5px; padding-top: 2px; }
+.recent-carousel-dot { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; transition: width .18s ease, background .18s ease; }
+.recent-carousel-dot.is-active { width: 16px; background: var(--primary); }
+@media (max-height: 720px) {
+  .prompt-input { min-height: 80px; max-height: 130px; }
+  .recent-section { margin-top: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .similar-progress > span { transition: none; }
+}
+
+.recent-head-actions { display: flex; align-items: center; gap: 4px; }
+
+/* 生成视图：历史区自然高度（最多 20 张缩略图），多余的纵向空间分给提示词输入框——
+   既消除历史下方死白，又在窗口很高时把空间给提示词而非无限拉高历史。
+   窗口过矮时工作区收缩、历史溢出→由既有判断切到轮播。 */
+.main-content-scroll { display: flex; flex-direction: column; }
+.main-content-scroll > .workspace { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.main-content-scroll > .recent-section { flex: 0 0 auto; }
+.workspace > .prompt-shell { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.workspace > .prompt-shell .prompt-input-row { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+/* height:auto 关键：输入框现在是横向 flex 行的成员，高度靠交叉轴 stretch 填满整行；
+   legacy 的固定高度会压住 stretch，导致输入区只剩 108px（行高其实有 285px）。 */
+.workspace > .prompt-shell .prompt-input { flex: 1 1 auto; height: auto; max-height: none; overflow-y: auto; }
+/* 文本底部净空：参考图照片堆悬浮在输入框右下角（收起态约 57px 高 + 6px 边距），
+   给文本预留底部空间，滚到底时最后几行也不会被堆压住；
+   模型不支持参考图（角落堆隐藏）时不预留。 */
+.prompt-input-row:has(> .reference-corner:not([hidden])) > .prompt-input { padding-bottom: 76px; }
+
+/* ===== 参考图组：复刻即梦 reference-group（-hover-trigger）的几何与交互参数 =====
+   条目 48×64 / gap 4；收起整组 scale(0.65625)、条目同原点交替 ±8deg 叠成照片堆；
+   悬停/点击展开：条目按 (宽+gap)×index 位移（锚右下角→向左），hover 上浮 -8px 放大 1.125；
+   统一过渡 0.3s cubic-bezier(.4,0,.2,1)。 */
+.prompt-input-row { position: relative; display: flex; align-items: stretch; margin: 0 10px; }
+.prompt-input-row > .prompt-input { flex: 1 1 auto; min-width: 0; margin: 0; }
+.reference-corner { position: absolute; right: 10px; bottom: 6px; z-index: 6; }
+.reference-corner[hidden] { display: none; }
+.reference-group {
+  --ref-w: 65px; --ref-h: 86px; --ref-gap: 5px;
+  --ref-collapsed-scale: 0.65625;
+  --ref-ease: cubic-bezier(.4, 0, .2, 1);
+  position: relative; z-index: 1;
+  width: var(--ref-w); height: var(--ref-h);
+  transform: scale(var(--ref-collapsed-scale));
+  transform-origin: right bottom;
+  transition: transform .35s cubic-bezier(.15, .75, .3, 1);
+}
+.reference-group.is-open { transform: scale(1); }
+/* 悬浮触发即展开：热区就是照片堆本体（不做外扩热区——透明热区会吞掉提示词区域的点击）。 */
+.reference-group-viewport { position: absolute; inset: 0; }
+.reference-group-content { position: absolute; inset: 0; }
+.reference-group-track { position: absolute; right: 0; top: 0; width: 100%; height: 100%; direction: ltr; }
+/* 展开：外层 viewport（不滚动）承担限宽定位；内层 content 是 rtl 滚动口
+   （溢出向左延伸、初始停在最右的上传块；多图超宽时滚轮/拖动横向浏览）。
+   这个透明区域同时就是 hover 区——卡片间隙、移除某张后的空档，指针都仍在其中。
+   顶部留 28px 给 hover 上浮(-8px)与移除角标，底部留 8px 给横向细滚动条。 */
+.reference-group.is-open .reference-group-viewport {
+  left: auto; right: 0; top: -28px; bottom: auto;
+  height: calc(var(--ref-h) + 36px);
+  /* 上限贴近窗口宽：内容溢出时条带左缘距窗体左边约 12px，
+     左缘渐隐带因此始终跟随窗体边缘（随窗口宽度自适应）。
+     宽度加过渡：删除卡片时盒子与卡片滑动同步收缩，渐隐遮罩贴着左缘
+     平滑移动，不再瞬跳到新位置（卡片还在原地时遮罩已挪走的错位感）。 */
+  width: min(calc((var(--ref-w) + var(--ref-gap)) * var(--ref-count) + 12px), calc(100vw - 64px));
+  transition: width .3s var(--ref-ease);
+}
+/* 左缘渐隐遮罩挂在不滚动的 viewport 上：渐隐带恒定钉在界面可见区左缘 96px，
+   不随滚动容器的内容坐标漂移（mask 挂滚动容器上会跟着内容走）。 */
+.reference-group.is-open .reference-group-viewport.is-clipped {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 96px);
+  mask-image: linear-gradient(to right, transparent 0, #000 96px);
+}
+.reference-group.is-open .reference-group-content {
+  position: relative; inset: auto;
+  width: 100%; height: 100%;
+  overflow-x: auto; overflow-y: hidden;
+  direction: rtl;
+}
+.reference-group.is-open .reference-group-track {
+  position: relative;
+  width: calc((var(--ref-w) + var(--ref-gap)) * var(--ref-count) - var(--ref-gap));
+  height: var(--ref-h);
+  margin-top: 28px;
+}
+/* 条目：绝对定位在同一原点（右下角），收起态整摞重叠 + 交替旋转。 */
+.reference-item {
+  position: absolute; right: 0; top: 0;
+  width: var(--ref-w); height: var(--ref-h);
+  transform: rotate(var(--rot));
+  transition: transform .3s var(--ref-ease), opacity .3s var(--ref-ease);
+  will-change: transform, opacity;
+}
+/* 折叠态：已上传的图片卡按层级"只向左"错开，从上传块后面多露出一截，便于一眼
+   看到已传了参考图。不做 Y 偏移——向下偏移会压住下方 UI。
+   步长随数量自适应：单张时错开大（22px，一眼看清），张数越多步长越小
+   （每多一张减 3px，下限 8px），避免整摞横向铺太宽。
+   --ref-count = 图片数 + 上传块，故图片数 = --ref-count - 1。
+   （上传块 idx0 位移为 0，始终在最前右作为锚点。） */
+.reference-group:not(.is-open) .reference-item-image {
+  --pile-step: max(8px, calc(22px - (var(--ref-count) - 2) * 3px));
+  transform: translateX(calc(var(--idx) * var(--pile-step) * -1)) rotate(var(--rot));
+}
+/* 展开：按 index 向左排开、去掉旋转。 */
+.reference-group.is-open .reference-item { transform: translateX(calc((var(--ref-w) + var(--ref-gap)) * var(--idx) * -1)); }
+/* 展开条目 hover 放大：顶边锚定（transform-origin: top center）、不上跳——
+   删除按钮在卡顶部，卡向下/两侧生长而顶边不动，按钮不会"躲避鼠标"，
+   可以直接点到；按下微缩保留触感。 */
+.reference-group.is-open .reference-item-image { transform-origin: top center; }
+.reference-group.is-open .reference-item-image:hover { transform: translateX(calc((var(--ref-w) + var(--ref-gap)) * var(--idx) * -1)) scale(1.1); z-index: 200 !important; }
+.reference-group.is-open .reference-item-image:active { transform: translateX(calc((var(--ref-w) + var(--ref-gap)) * var(--idx) * -1)) scale(.98); }
+.reference-item-image { border-radius: 4px; background: var(--background-muted); box-shadow: 0 2px 8px rgba(15, 23, 42, .22); cursor: pointer; }
+.reference-group.is-open .reference-item-image { cursor: default; }
+.reference-item-image img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; pointer-events: none; }
+/* （左缘渐隐遮罩规则见上方 .reference-group-viewport.is-clipped —— 必须挂在
+   不滚动的 viewport 上才相对界面固定。） */
+/* 上传卡外壳（BorderGlow）：只承担"发光外框"这一层装饰，撑满 .reference-item
+   让内层 button 铺满其上；交互语义（onClick/disabled/title/aria-label）全部留在
+   button 上——BorderGlow 根节点不 spread 额外 props，包在外层就无需改组件源码。
+   底色由 BorderGlow 的 backgroundColor 提供，且必须是 isLightColor() 认得出的
+   浅色 hex：传 'transparent' 会落到 dark 分支，而 soft-light / plus-lighter 在近白
+   面板上等于把光晕整个吃掉，什么都看不见。 */
+.reference-upload-glow { position: absolute; inset: 0; }
+/* .border-glow-inner 默认 overflow:auto，会把 button 的焦点环裁掉。 */
+.reference-upload-glow > .border-glow-inner { overflow: visible; }
+/* 上传块：虚线边框竖版卡，条目自身带 ±8deg 时内部反向旋转回正。底色来自上面的
+   BorderGlow 外壳（浅色不透明底——此前试过的 50% 白实测在该区域平均像素差仅 4.1，
+   对近白面板 + 近白照片堆等于没变化，改由外壳统一承担）。 */
+.reference-upload {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 0; border: 1px dotted var(--border-strong); border-radius: 4px;
+  background: none; color: var(--foreground-muted); font-size: 16px; cursor: pointer;
+  transform: rotate(calc(var(--rot) * -1));
+  transition: color .3s var(--ref-ease), border-color .3s var(--ref-ease), transform .3s var(--ref-ease);
+}
+.reference-group.is-open .reference-upload { transform: none; }
+.reference-upload:hover:not(:disabled) { color: var(--primary); border-color: var(--primary); }
+.reference-upload:disabled { opacity: .5; cursor: not-allowed; }
+/* 拖拽参考图时的垃圾桶：独立悬浮层锚定在组右缘（不在滚动口内，位置固定不随条带滑动）。 */
+.reference-trash { position: absolute; right: 0; top: 0; z-index: 500; display: grid; place-items: center; width: var(--ref-w); height: var(--ref-h); border: 1.5px dashed #dc2626; border-radius: 4px; color: #dc2626; background: color-mix(in srgb, #dc2626 10%, var(--background)); box-shadow: 0 2px 10px rgba(220, 38, 38, .25); }
+.reference-trash.is-over { border-style: solid; background: color-mix(in srgb, #dc2626 22%, var(--background)); scale: 1.08; }
+/* 展开时底部光晕条（对齐 group-background 的模糊渐变，宽度随数量增长）。 */
+.reference-group-glow {
+  position: absolute; top: 0; right: 0; height: var(--ref-h); width: var(--ref-w);
+  background: linear-gradient(270deg, hsla(0, 0%, 96%, .6) 82.41%, hsla(0, 0%, 96%, 0) 98.03%);
+  filter: blur(12px); opacity: 0; pointer-events: none;
+  transition: width .3s var(--ref-ease), opacity .3s var(--ref-ease);
+}
+.reference-group.is-open .reference-group-glow { opacity: 1; width: min(calc((var(--ref-w) + var(--ref-gap)) * var(--ref-count) + 16px), calc(100vw - 64px)); }
+.reference-group-remove { position: absolute; top: -7px; right: -7px; z-index: 2; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 999px; background: var(--foreground-intense); color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgba(15, 23, 42, .3); }
+.reference-group-remove:hover { background: #dc2626; }
+/* 数量角标：钉在上传块的右上角，即整摞最前右那个锚点（index 0 恒定 translateX(0)、
+   绕中心旋转 8°）的右上顶点处。上传卡 65×86 转 8° 后其外接框右上角在组内坐标
+   (70.7, -4.1)，故 top/right 沿用旧版左上角的同一组偏移量做镜像（-5px / -7px），
+   角标右上角正好落在卡片外接框的右上角上。
+   注意整组带 scale(0.65625)，此处的尺寸是"反算后的名义值"：26px 盒子 / 16px 字号
+   实际渲染为约 17px / 10.5px——直接按渲染目标写会小一半。
+   pointer-events:none，压在按钮角上也不挡点击。 */
+.reference-group-count { position: absolute; top: -5px; right: -7px; z-index: 300; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--primary); color: #fff; font-size: 16px; line-height: 1; font-weight: 700; pointer-events: none; }
+/* 拖图提示层（上下两区，整行宽）：两个区按真实分界（--prompt-drop-band，由
+   desktop.js promptDropBandTop 算出，命中判定用同一条线）同时画出来：
+   · data-zone='prompt' / 'reference'：光标所在的区实线高亮，另一区淡显；
+   · data-zone='reference-only'（应用内拖图，只接收加参考图）：只画参考图带；
+   · data-reference='off'（模型不支持参考图）：只有读提示词一个区，占满整行。
+   pointer-events:none，事件落在下面的 promptInput / referenceRail 上。 */
+.prompt-drop-overlay {
+  --prompt-drop-band: 0px;
+  position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  animation: promptDropIn .14s ease-out;
+}
+@keyframes promptDropIn { from { opacity: 0; } to { opacity: 1; } }
+.prompt-drop-overlay[hidden] { display: none; }
+.prompt-drop-zone {
+  position: absolute; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px dashed color-mix(in srgb, var(--primary) 45%, transparent);
+  background: color-mix(in srgb, var(--primary) 4%, transparent);
+  transition: background .12s ease, border-color .12s ease, opacity .12s ease;
+}
+.prompt-drop-zone-prompt { top: 0; bottom: var(--prompt-drop-band); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.prompt-drop-zone-reference { bottom: 0; height: var(--prompt-drop-band); border-top-style: solid; border-radius: 0 0 var(--radius-md) var(--radius-md); justify-content: flex-start; padding-left: 12px; }
+.prompt-drop-overlay[data-reference='off'] .prompt-drop-zone-reference { display: none; }
+.prompt-drop-overlay[data-reference='off'] .prompt-drop-zone-prompt { border-radius: var(--radius-md); }
+.prompt-drop-overlay[data-zone='reference-only'] .prompt-drop-zone-prompt { display: none; }
+.prompt-drop-overlay[data-zone='prompt'] .prompt-drop-zone-prompt,
+.prompt-drop-overlay[data-zone='reference'] .prompt-drop-zone-reference,
+.prompt-drop-overlay[data-zone='reference-only'] .prompt-drop-zone-reference {
+  border-color: var(--primary); border-style: solid;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.prompt-drop-overlay[data-zone='prompt'] .prompt-drop-zone-reference,
+.prompt-drop-overlay[data-zone='reference'] .prompt-drop-zone-prompt { opacity: .45; }
+.prompt-drop-hint {
+  position: static; display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px; border-radius: 999px;
+  background: color-mix(in srgb, var(--background) 90%, transparent);
+  color: var(--primary); font-size: 11px; white-space: nowrap;
+  box-shadow: 0 1px 5px rgba(15, 23, 42, .12);
+}
+.prompt-drop-hint svg, .prompt-drop-hint i { width: 14px; height: 14px; }
+
+/* 空 @：引用的参考图被删后留下的占位，点击弹出参考图选择。 */
+.prompt-reference-token.is-empty {
+  padding: 2px 8px; cursor: pointer;
+  border-style: dashed; border-color: color-mix(in srgb, var(--warning, #d97706) 70%, transparent);
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, transparent);
+}
+.prompt-reference-token.is-empty .prompt-reference-name { color: var(--warning, #b45309); }
+.prompt-reference-token.is-empty:hover { background: color-mix(in srgb, var(--warning, #d97706) 16%, transparent); }
+
+/* Three horizontal settings entries styled as an Appica-style menubar (pill),
+   below the references and above the generate button. Open on hover. */
+.prompt-tools-row { display: flex; align-items: stretch; gap: 4px; margin: 8px 10px 0; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background-subtle); }
+.prompt-tools-row .prefs-tab { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 6px 10px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--foreground-emphasis); font-size: 12px; cursor: pointer; }
+.prompt-tools-row .prefs-tab:hover, .prompt-tools-row .prefs-tab[aria-expanded="true"] { background: var(--background); box-shadow: var(--shadow-xs); }
+.prompt-tools-row .prefs-tab svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.prefs-tab-label { flex: 0 0 auto; font-weight: 600; }
+.prefs-tab-value { flex: 1 1 auto; min-width: 0; display: flex; overflow: hidden; white-space: nowrap; text-align: left; color: var(--foreground-muted); font-weight: 500; }
+.prefs-tab-value:empty { display: none; }
+/* 摘要拆两段：供应商 · 模型（头）可被省略号截断；比例 · 数量（尾）不收缩，改动总能看见。 */
+.prefs-tab-value-head { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.prefs-tab-value-tail { flex: none; white-space: pre; }
+/* 高级按钮：图标+文字但自适应最小宽度、靠最右；主设置按钮 flex:1 占更大空间。
+   选择器加上 .prompt-tools-row 前缀，特指度需高于 `.prompt-tools-row .prefs-tab{flex:1}`，
+   否则高级会被 flex:1 覆盖成对半分。 */
+.prompt-tools-row .prefs-tab.prefs-tab-icononly { flex: 0 0 auto; margin-left: auto; justify-content: center; gap: 6px; padding: 6px 10px; }
+
+/* Stacked field (label above the select) used inside the provider/model panel. */
+.prefs-stack-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.generation-prefs-panel .prefs-section .prefs-stack-field + .prefs-stack-field { margin-top: 8px; }
+.prefs-stack-field .modern-select, .prefs-stack-field .appica-select-field { width: 100%; min-width: 0; }
+
+/* Advanced panel: its own head is the title, so hide the details' summary and
+   keep the grid always visible. */
+#prefsPanelAdvanced .advanced-settings > summary { display: none; }
+
+/* Inline ratio grid (Tabs-style shape chips) replaces the ratio dropdown in the
+   画面 panel; the bridged #ratioField stays in the DOM (hidden) for wiring. */
+#prefsPanelImage #ratioField, .prefs-hidden-field { display: none; }
+/* Unified, backgrounded container holding uniformly-sized shape chips. */
+/* Bare panel head (no title): keep only the close button, top-right. */
+.generation-prefs-head-bare { justify-content: flex-end; min-height: 0; margin-bottom: -6px; }
+/* Provider + model share one row, select boxes aligned. */
+.prefs-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: end; }
+.prefs-field-row .prefs-stack-field { min-width: 0; }
+
+/* Horizontal chips (shape icon left, ratio text right) stretched to fill width. */
+.ratio-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background-subtle); }
+.ratio-grid-item { width: auto; min-height: 34px; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--background); color: var(--foreground-subtle); cursor: pointer; transition: border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease; }
+.ratio-grid-item:hover:not(:disabled) { border-color: var(--border-emphasis); color: var(--foreground-emphasis); }
+.ratio-grid-item.is-active { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--background)); box-shadow: 0 0 0 1px var(--primary) inset; }
+.ratio-grid-item:disabled { opacity: .35; cursor: default; }
+/* Fixed shape box so every chip's icon sits on the same baseline (alignment). */
+.ratio-grid-item .ratio-option-visual { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 24px; height: 18px; }
+.ratio-grid-item .ratio-shape { display: block; border: 1.5px solid currentColor; border-radius: 2.5px; background: transparent; }
+.ratio-grid-item .ratio-option-visual.is-symbolic svg { width: 18px; height: 18px; }
+.ratio-grid-label { flex: 1 1 auto; font-size: 11px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: 500; }
+
+/* Resolution + count as side-by-side Appica Sliders (discrete tiers) synced to
+   hidden native <select>s. */
+.prefs-slider-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.prefs-slider-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.prefs-field-label { font-size: 12px; font-weight: 600; color: var(--foreground-emphasis); }
+.option-slider-host { padding: 4px 2px 0; }
+.option-slider { display: flex; flex-direction: column; gap: 8px; }
+.option-slider > :first-child { width: 100%; }
+.option-slider-marks { display: flex; justify-content: space-between; gap: 4px; }
+.option-slider-mark { flex: 0 0 auto; border: 0; background: transparent; padding: 0; font-size: 11px; line-height: 1; color: var(--foreground-muted); cursor: pointer; }
+.option-slider-mark:hover { color: var(--foreground-emphasis); }
+.option-slider-mark.is-active { color: var(--primary); font-weight: 600; }
+.option-slider-single { font-size: 12px; color: var(--foreground-emphasis); }
+
+/* Custom-resolution inputs (shown only when resolution = 自定义). */
+.custom-size-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.custom-size-row:not(:has(label:not([hidden]))) { display: none; }
+.custom-size-row .prefs-field-label { font-weight: 500; }
+
+/* Generation-preferences popover (settings button → 生成偏好). Always in the DOM
+   for the bridged selects; shown/positioned by desktop.js as a fixed card. */
+.generation-prefs-panel { position: fixed; z-index: 1200; display: flex; flex-direction: column; gap: 14px; padding: 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-xl); background: var(--background); box-shadow: var(--shadow-2xl, var(--shadow-lg)); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; transform-origin: top center; }
+/* 面板内桥接下拉（供应商/模型）的弹层被传送到 body，需盖在面板之上，否则展开被面板遮住。 */
+[data-slot="select-positioner"], [data-slot="select-content"], [data-slot="select-popup"], .ratio-picker-menu { z-index: 1500 !important; }
+/* Appica-style popup open animation (scale + fade), mirrors the dropdown-menu. */
+@keyframes prefsPanelPop { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+.generation-prefs-panel:not([hidden]) { animation: prefsPanelPop .18s cubic-bezier(0.175, 0.885, 0.32, 1.5); }
+@media (prefers-reduced-motion: reduce) { .generation-prefs-panel:not([hidden]) { animation: none; } }
+/* Only the advanced panel (long) scrolls; 供应商/画面 size to content — no scrollbar. */
+#prefsPanelAdvanced { overflow-y: auto; }
+.generation-prefs-head { display: flex; align-items: center; justify-content: space-between; }
+.generation-prefs-head strong { font-size: 14px; font-weight: 700; color: var(--foreground-emphasis); }
+.generation-prefs-panel .prefs-section { display: grid; gap: 8px; }
+.generation-prefs-panel .prefs-section-label { font-size: 12px; font-weight: 600; color: var(--foreground-muted); }
+.generation-prefs-panel .prefs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.generation-prefs-panel .prefs-grid label { display: flex; flex-direction: column; min-width: 0; }
+.generation-prefs-panel .prefs-grid .wide-field { grid-column: 1 / -1; }
+.generation-prefs-panel .ratio-field { display: flex; flex-direction: column; gap: 4px; }
+/* Advanced settings sits flush inside the panel (drop its page-level margin). */
+.generation-prefs-panel .advanced-settings { margin: 0; }
+/* Transparent shield over the window while a native image drag is out: nothing scrollable sits under
+   the cursor, so Chromium's edge autoscroll never scrolls the gallery. Drop targets are hit-tested by point. */
+.image-drag-shield { position: fixed; inset: 0; z-index: 2000; background: transparent; }
+.image-drag-shield[hidden] { display: none; }
+/* Drag-to-trash target: shown while a history image is dragged (native drag, so no hover state). */
+.history-drag-trash { position: absolute; right: 16px; bottom: 16px; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 104px; height: 84px; border: 2px dashed #f04438; border-radius: 16px; background: color-mix(in srgb, #fef3f2 92%, transparent); color: #d92d20; font-size: 11px; font-weight: 600; text-align: center; line-height: 1.3; box-shadow: 0 10px 30px #d92d2033; pointer-events: none; }
+.history-drag-trash[hidden] { display: none; }
+.history-drag-trash svg { width: 26px; height: 26px; }
+/* In-app recycle bin page (reuses the history page grid, header and tiles). */
+.history-bin-page { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.history-bin-toolbar { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px 10px; border-bottom: 1px solid var(--border); }
+.history-bin-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--foreground-muted); }
+.history-bin-actions { display: flex; gap: 8px; }
+.history-bin-actions button { flex: 1 1 0; min-width: 0; }
+.history-bin-item { cursor: pointer; }
+/* Sidebar count badges (错误日志, 回收站). The legacy-layer rule loses to unlayered button styles, so restate it here. */
+.sidebar .sidebar-button { position: relative; }
+.sidebar-badge { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border: 2px solid var(--background); border-radius: 8px; background: #d92d20; color: #fff; font-size: 9px; font-weight: 700; line-height: 1; pointer-events: none; }
+.sidebar-badge[hidden] { display: none; }
+.sidebar-badge.sidebar-badge-muted { background: #667085; }
+/* History detail drawer: compact by default (summary row + one row of icon actions, ~110px) so the
+   gallery keeps the room; 展开 shows the 详情/提示词/元数据 tabs. Flush with the bottom while the
+   selection bar is hidden (just viewing one image). */
+.history-page[data-selection-bar="hidden"] .history-detail-drawer { bottom: 0; }
+.history-detail-drawer[data-mode="compact"] { grid-template-rows: auto auto; }
+.history-detail-drawer[data-mode="compact"] .history-detail-tabs,
+.history-detail-drawer[data-mode="compact"] .history-detail-body { display: none; }
+.history-detail-drawer[data-mode="compact"] .history-detail-head { border-bottom: 0; padding: 8px 8px 0 12px; }
+.history-detail-drawer[data-mode="expanded"] .history-detail-summary { display: none; }
+.history-detail-summary { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.history-detail-summary-thumb { flex: none; width: 44px; height: 44px; object-fit: cover; border-radius: 8px; background: var(--background-muted); cursor: grab; }
+.history-detail-summary-copy { min-width: 0; display: grid; gap: 2px; }
+.history-detail-summary-copy strong, .history-detail-summary-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-detail-summary-copy strong { font-size: 13px; font-weight: 600; color: var(--foreground-emphasis); }
+.history-detail-summary-copy span { font-size: 11px; color: var(--foreground-muted); }
+.history-detail-head #historyDetailExpandBtn { margin-left: auto; }
+#historyDetailExpandBtn svg { transition: transform .15s ease; }
+#historyDetailExpandBtn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.history-detail-drawer[data-mode="compact"] .history-detail-actions { display: flex; gap: 6px; padding: 8px 10px 10px; border-top: 0; }
+.history-detail-drawer[data-mode="compact"] .history-detail-actions button { flex: 1 1 0; min-width: 0; height: 34px; padding: 0; }
+.history-detail-drawer[data-mode="compact"] .history-detail-actions button span { display: none; }
+.history-detail-drawer[data-mode="compact"] .history-detail-actions button svg { width: 16px; height: 16px; }
+.history-detail-actions #historyDetailTrashBtn { color: #d92d20; }

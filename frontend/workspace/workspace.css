@@ -1,0 +1,145 @@
+/* 图片工作台：主窗口里的一个页面（与生成、历史同级），460 宽单列布局，窗口拉大时画布变大。 */
+.workspace-page {
+  position: relative;
+  grid-row: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+}
+.workspace-page[hidden] { display: none; }
+#workspaceRoot { height: 100%; }
+
+.ws-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--foreground-emphasis, #1F2937);
+}
+.ws-page > * { flex-shrink: 0; }
+
+.ws-header { display: flex; align-items: center; gap: 4px; padding: 10px 12px 8px; border-bottom: 1px solid var(--border, #E5E7EB); }
+.ws-title { flex: 1 1 auto; min-width: 0; }
+.ws-title h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--foreground-intense, #111827); }
+.ws-title p { margin: 2px 0 0; font-size: 12px; color: var(--foreground-muted, #6B7280); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-ratio { width: 76px; }
+.ws-header .ws-clear { gap: 4px; flex: none; }
+
+.ws-modes { display: flex; gap: 0; margin: 8px 12px 0; padding: 3px; border-radius: 10px; background: var(--background-muted, #F3F4F6); }
+.ws-mode { flex: 1 1 0; height: 28px; gap: 6px; border-radius: 8px; font-size: 13px; color: var(--foreground-muted, #6B7280); }
+.ws-mode[data-pressed] { background: #fff; color: var(--foreground-intense, #111827); font-weight: 700; box-shadow: 0 1px 2px rgba(15, 23, 42, .14); }
+
+.ws-toolbar { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 4px 12px; }
+.ws-tools { display: flex; gap: 2px; }
+.ws-tool { width: 30px; height: 30px; }
+.ws-tool[data-pressed] { background: #E8EEFD; color: var(--primary, #2563EB); box-shadow: inset 0 0 0 1px #BFD0FA; }
+.ws-tool.is-brush[data-pressed] { background: #FEE2E2; color: #DC2626; box-shadow: inset 0 0 0 1px #FECACA; }
+.ws-grow { flex: 1 1 auto; }
+.ws-hint { font-size: 11px; color: var(--foreground-muted, #6B7280); white-space: nowrap; }
+.ws-color { width: 16px; height: 16px; border-radius: 999px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--border, #E5E7EB); }
+.ws-brush { width: 100px; }
+.ws-brush-value { width: 24px; font-size: 12px; font-weight: 600; }
+
+.ws-stage { position: relative; flex: 1 1 auto; min-height: 200px; margin: 0 12px; border-radius: 12px; background: #EEF0F3; overflow: hidden; }
+.ws-canvas { position: absolute; inset: 0; }
+.ws-canvas[data-mode='annotate']:not([data-tool='select']) { cursor: crosshair; }
+.ws-canvas[data-mode='mask'] { cursor: none; }
+.ws-canvas.is-panning, .ws-canvas.is-panning * { cursor: grab !important; }
+.ws-canvas.is-grabbing, .ws-canvas.is-grabbing * { cursor: grabbing !important; }
+.ws-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--foreground-muted, #6B7280); text-align: center; padding: 16px; }
+.ws-empty strong { color: var(--foreground-intense, #111827); font-size: 14px; }
+.ws-empty span { font-size: 12px; }
+.ws-stage-foot { display: flex; align-items: center; gap: 2px; padding: 4px 16px 0; font-size: 11px; color: var(--foreground-muted, #6B7280); }
+.ws-stage-foot > span { margin-right: auto; }
+.ws-fit { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 4px; color: inherit; font-size: 11px; cursor: pointer; border-radius: 6px; }
+.ws-fit:hover { background: var(--background-muted, #F3F4F6); }
+.ws-notice { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 12px 0; padding: 6px 10px; border-radius: 8px; font-size: 12px; background: #FFFBEB; color: #92400E; }
+.ws-notice button { border: 0; background: none; color: inherit; cursor: pointer; display: grid; place-items: center; }
+
+.ws-panel { flex: 0 1 auto; max-height: 44%; overflow-y: auto; padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 8px; }
+.ws-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ws-panel-head h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--foreground-intense, #111827); }
+.ws-panel-head span { font-size: 11px; color: var(--foreground-muted, #6B7280); }
+
+.ws-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ws-list li { display: grid; grid-template-columns: 22px auto minmax(0, 1fr) 28px; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 10px; border: 1px solid transparent; }
+.ws-list li.is-selected { background: #F8FAFF; border-color: #DBE4FB; }
+.ws-list li.ws-list-empty { display: block; font-size: 12px; color: var(--foreground-muted, #6B7280); padding: 4px; }
+.ws-pin { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; border: 1px solid rgba(0, 0, 0, .25); }
+.ws-kind { font-size: 12px; color: var(--foreground-muted, #6B7280); white-space: nowrap; }
+.ws-warn { margin: 0; padding: 6px 8px 6px 22px; border-radius: 8px; background: #FFFBEB; color: #92400E; font-size: 12px; line-height: 1.5; }
+.ws-preview { border-radius: 10px; background: var(--background-subtle, #F9FAFB); border: 1px solid var(--border, #E5E7EB); padding: 6px 10px; }
+.ws-preview summary { font-size: 12px; font-weight: 700; color: var(--foreground-muted, #6B7280); cursor: pointer; }
+.ws-preview p { margin: 6px 0 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.ws-tabs { display: inline-flex; align-self: flex-start; padding: 3px; border-radius: 8px; background: var(--background-muted, #F3F4F6); }
+.ws-tab { height: 22px; padding: 0 12px; font-size: 11px; border-radius: 6px; color: var(--foreground-muted, #6B7280); }
+.ws-tab[data-pressed] { background: #fff; color: var(--foreground-intense, #111827); font-weight: 700; }
+.ws-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; }
+.ws-anchor { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 10px; border: 1px solid var(--border, #E5E7EB); background: var(--background-subtle, #F9FAFB); cursor: grab; }
+.ws-anchor:hover:not(:disabled) { border-color: #BFD0FA; background: #F8FAFF; }
+.ws-anchor:disabled { opacity: .45; cursor: not-allowed; }
+.ws-anchor img { width: 40px; height: 30px; object-fit: contain; pointer-events: none; }
+.ws-anchor b { font-size: 11px; font-weight: 600; color: var(--foreground-emphasis, #1F2937); }
+.ws-anchor em { font-style: normal; font-size: 10px; color: var(--foreground-muted, #6B7280); white-space: nowrap; }
+
+.ws-model-trigger { width: 100%; }
+/* 生成模型：种类分段 + 该种类下的具体模型 */
+.ws-model-picker { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ws-page .ws-families { display: flex; flex-wrap: wrap; width: 100%; gap: 2px; padding: 3px; border-radius: 8px; background: var(--background-muted, #F3F4F6); }
+.ws-family { flex: 1 1 auto; height: 24px; padding: 0 10px; font-size: 12px; border-radius: 6px; color: var(--foreground-muted, #6B7280); white-space: nowrap; }
+.ws-family:not([data-pressed]), .ws-family:not([data-pressed]):hover, .ws-family:not([data-pressed]):focus-visible { background: transparent; }
+.ws-family:not([data-pressed]):hover { color: var(--foreground-intense, #111827); }
+.ws-family[data-pressed] { background: #fff; color: var(--foreground-intense, #111827); font-weight: 700; box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+.ws-adapt { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--foreground-muted, #6B7280); }
+.ws-adapt svg { color: var(--primary, #2563EB); }
+.ws-adapt.is-blue { color: var(--primary, #2563EB); }
+.ws-switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border, #E5E7EB); }
+.ws-switch b { display: block; font-size: 13px; font-weight: 600; }
+.ws-switch span { font-size: 11px; color: var(--foreground-muted, #6B7280); }
+.ws-tip { display: flex; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--background-subtle, #F9FAFB); }
+.ws-tip svg { flex: none; color: #D97706; margin-top: 2px; }
+.ws-tip b { display: block; font-size: 12px; font-weight: 500; }
+.ws-tip span { font-size: 11px; color: var(--foreground-muted, #6B7280); }
+
+.ws-footer { display: flex; gap: 8px; padding: 8px 12px 10px; border-top: 1px solid var(--border, #E5E7EB); }
+.ws-menu-wrap { position: relative; }
+.ws-export { gap: 6px; white-space: nowrap; }
+.ws-send { flex: 1 1 auto; gap: 6px; }
+.ws-menu { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; min-width: 180px; padding: 6px; border-radius: 12px; background: #fff; border: 1px solid var(--border, #E5E7EB); box-shadow: 0 10px 30px rgba(15, 23, 42, .16); display: flex; flex-direction: column; }
+.ws-menu button { text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; color: inherit; }
+.ws-menu button:hover { background: var(--background-muted, #F3F4F6); }
+
+.ws-sheet-backdrop { position: absolute; inset: 0; z-index: 30; background: rgba(17, 24, 39, .42); display: flex; align-items: flex-end; }
+.ws-sheet { width: 100%; max-height: 82%; overflow-y: auto; background: #fff; border-radius: 18px 18px 0 0; padding: 8px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+.ws-sheet-grip { align-self: center; width: 40px; height: 4px; border-radius: 2px; background: #D1D5DB; }
+.ws-sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.ws-sheet-head h3 { margin: 0; font-size: 17px; font-weight: 700; }
+.ws-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--foreground-muted, #6B7280); }
+.ws-field-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--foreground-muted, #6B7280); }
+.ws-thumbs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ws-thumbs[data-count='2'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ws-thumbs[data-count='1'] { grid-template-columns: minmax(0, 1fr); }
+.ws-thumbs figure { margin: 0; min-width: 0; }
+.ws-thumb { aspect-ratio: 3 / 2; border-radius: 10px; overflow: hidden; border: 1px solid var(--border, #E5E7EB); background: #F3F4F6; }
+.ws-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ws-thumb.is-mask { position: relative; }
+.ws-thumbs figcaption { display: flex; flex-direction: column; margin-top: 4px; }
+.ws-thumbs figcaption b { font-size: 12px; font-weight: 600; }
+.ws-thumbs figcaption span { font-size: 11px; color: var(--foreground-muted, #6B7280); }
+.ws-sheet-prompt { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--background-subtle, #F9FAFB); border: 1px solid var(--border, #E5E7EB); font-size: 12px; line-height: 1.6; max-height: 120px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ws-check { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+.ws-check input { width: 16px; height: 16px; accent-color: var(--primary, #2563EB); }
+.ws-check svg { display: none; }
+.ws-sheet-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 4px; }
+.ws-sheet-actions button { gap: 6px; }
+
+/* Appica Toggle 不带默认样式、ToggleGroup 带 w-fit、Select 触发器带 w-full：在工作台里统一覆盖 */
+.ws-page [data-slot='toggle'] { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: transparent; border-radius: 8px; color: var(--foreground-muted, #6B7280); cursor: pointer; font: inherit; }
+.ws-page [data-slot='toggle']:hover:not([data-pressed]) { background: rgba(15, 23, 42, .05); color: var(--foreground-emphasis, #1F2937); }
+.ws-page .ws-modes { width: auto; }
+.ws-page .ws-mode { flex: 1 1 0; }
+.ws-header .ws-ratio { width: 76px; flex: none; }
+.ws-page .ws-tabs { width: fit-content; }
+.ws-thumbs[data-count='4'] { grid-template-columns: repeat(4, minmax(0, 1fr)); }

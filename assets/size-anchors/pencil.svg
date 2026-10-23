@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 8">
+  <!-- 平放的六角铅笔（长 180 mm、直径 8 mm）：笔尖、笔杆、金属箍、橡皮头。PicGen 原创。 -->
+  <g fill="#000000">
+    <path d="M0 4 L20 0.5 L20 7.5 Z"/>
+    <rect x="20" y="0.5" width="136" height="7"/>
+  </g>
+  <g fill="#FFFFFF"><rect x="20" y="3.3" width="136" height="1.4"/></g>
+  <g fill="#000000">
+    <rect x="156" y="0" width="10" height="8" rx="1"/>
+    <rect x="166" y="0.3" width="14" height="7.7" rx="3"/>
+  </g>
+</svg>

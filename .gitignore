@@ -1,0 +1,82 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+nul
+
+# Backups
+backups/
+/recovery-backups/
+*.backup
+*.bak
+
+# Claude AI
+.claude/
+
+# Build outputs
+dist/
+build/
+frontend-dist/
+frontend/legacy-layout.generated.css
+*.exe
+*.app
+
+# Keep deterministic tests; local live-provider and manual smoke scripts stay private.
+test/*
+!test/*.test.js
+debug*.html
+diagnose*.js
+diagnose*.html
+
+# Documentation drafts
+*_DRAFT.md
+FIX_REPORT.md
+IMPLEMENTATION_SUMMARY.md
+TEST_CHECKLIST.md
+
+# Local reference docs (not for repo)
+googleapi.md
+googleapirule.md
+图床.md
+图床Api
+薛定猫api.md
+薛定猫兼容API.md
+溯灵API兼容.md
+
+# Generated images and outputs
+OUTPUT/
+
+# Extracted reference source and local release evidence
+ref-2.1.9-source/
+release-evidence/
+
+# Local probes / test artifacts
+pgverify/
+test-output/
+
+# ML models fetched by scripts/fetch-models.js (sha256-pinned, cached per user)
+/models/
