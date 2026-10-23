@@ -2824,3 +2824,9 @@ textarea:focus {
 .unified-group-editor label > span {
     font-size: 11px;
 }
+
+#mcpSettingsPanel .settings-hint {
+    margin: 0;
+    color: var(--warning);
+    font-size: 12px;
+}

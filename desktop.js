@@ -60,6 +60,7 @@ const state = {
     // 而用户「停一下没反应就再点一下」的余手正好落在这个窗口里 —— 越点越跑。
     promptOptimizeStoppedAt: 0,
     outputDirectoryConfig: null,
+    mcpSettings: null,
     routingStrategy: 'order',
     automaticRoutingStrategy: 'order',
     strategyProviderId: null,
@@ -198,6 +199,7 @@ async function init() {
     refreshLucideIcons();
     bindWindowEvents();
     bindFormEvents();
+    installMcpBridge();
     loadPromptOptimizeSettings();
 
     state.serverUrl = await window.picgenDesktop.getServerUrl();
@@ -438,11 +440,18 @@ function cacheElements() {
     el.chatSettingsTab = document.getElementById('chatSettingsTab');
     el.networkSettingsTab = document.getElementById('networkSettingsTab');
     el.outputSettingsTab = document.getElementById('outputSettingsTab');
+    el.mcpSettingsTab = document.getElementById('mcpSettingsTab');
     el.imageSettingsPanel = document.getElementById('imageSettingsPanel');
     el.concurrencySettingsPanel = document.getElementById('concurrencySettingsPanel');
     el.chatSettingsPanel = document.getElementById('chatSettingsPanel');
     el.networkSettingsPanel = document.getElementById('networkSettingsPanel');
     el.outputSettingsPanel = document.getElementById('outputSettingsPanel');
+    el.mcpSettingsPanel = document.getElementById('mcpSettingsPanel');
+    el.mcpEnabledToggle = document.getElementById('mcpEnabledToggle');
+    el.mcpUrlInput = document.getElementById('mcpUrlInput');
+    el.mcpCopyConfigBtn = document.getElementById('mcpCopyConfigBtn');
+    el.mcpRegenerateTokenBtn = document.getElementById('mcpRegenerateTokenBtn');
+    el.mcpPortNotice = document.getElementById('mcpPortNotice');
     el.outputDirectoryInput = document.getElementById('outputDirectoryInput');
     el.outputDirectoryMode = document.getElementById('outputDirectoryMode');
     el.chooseOutputDirectoryBtn = document.getElementById('chooseOutputDirectoryBtn');
@@ -853,6 +862,10 @@ function bindFormEvents() {
     el.promptOptimizeSaveBtn?.addEventListener('click', savePromptOptimizeSettings);
     el.networkSettingsTab.addEventListener('click', () => setSettingsMode('network'));
     el.outputSettingsTab.addEventListener('click', () => setSettingsMode('output'));
+    el.mcpSettingsTab.addEventListener('click', () => setSettingsMode('mcp'));
+    el.mcpEnabledToggle.addEventListener('change', saveMcpSettings);
+    el.mcpCopyConfigBtn.addEventListener('click', copyMcpClientConfig);
+    el.mcpRegenerateTokenBtn.addEventListener('click', regenerateMcpToken);
     for (const input of document.querySelectorAll('[name="providerStrategy"]')) {
         input.addEventListener('change', () => {
             el.providerStrategySelect.value = input.value;
@@ -4637,6 +4650,10 @@ function updateSettingsProviderMeta() {
         el.settingsProviderMeta.textContent = `当前连接：${proxyLabels[el.proxyModeSelect.value] || '直连'}`;
         return;
     }
+    if (state.settingsMode === 'mcp') {
+        el.settingsProviderMeta.textContent = el.mcpEnabledToggle.checked ? 'MCP 服务器已开启' : 'MCP 服务器未开启';
+        return;
+    }
     if (state.settingsMode === 'output') {
         el.settingsProviderMeta.textContent = state.outputDirectoryConfig?.isDefault
             ? '当前：应用默认目录'
@@ -4818,6 +4835,82 @@ function closeSequence(sequenceId) {
     saveSequences();
     renderSequenceTabs();
     loadCurrentSequenceToForm();
+}
+
+function mcpSequenceSnapshot(sequence) {
+    return { ...serializeSequence(sequence), status: sequence.status, current: sequence.id === state.currentSequenceId };
+}
+
+function mcpListSequences() {
+    saveCurrentSequenceFromForm();
+    return state.sequences.map(mcpSequenceSnapshot);
+}
+
+async function mcpMutateSequence(request) {
+    const action = request?.action;
+    if (action === 'create') {
+        saveCurrentSequenceFromForm();
+        const sequence = createSequence({ name: request.name || `序列${state.sequences.length + 1}`, prompt: request.prompt, providerId: request.providerId, model: request.model, ratio: request.ratio, count: request.count, imageSize: request.imageSize });
+        state.sequences.push(sequence);
+        normalizeSequenceNames();
+        if (request.makeCurrent !== false) state.currentSequenceId = sequence.id;
+        saveSequences();
+        renderSequenceTabs();
+        loadCurrentSequenceToForm();
+        return mcpSequenceSnapshot(sequence);
+    }
+    const sequence = request.sequenceId ? state.sequences.find(item => item.id === request.sequenceId) : getCurrentSequence();
+    if (!sequence) return { error: '找不到这个序列' };
+    if (action === 'delete') {
+        if (state.sequences.length <= 1) return { error: '至少保留一个序列' };
+        closeSequence(sequence.id);
+        return { deleted: true };
+    }
+    if (action === 'update') {
+        for (const key of ['name', 'prompt', 'providerId', 'model', 'ratio', 'imageSize']) if (request[key] !== undefined) sequence[key] = request[key];
+        if (request.count !== undefined) sequence.count = String(request.count);
+        if (request.makeCurrent) state.currentSequenceId = sequence.id;
+        saveSequences();
+        renderSequenceTabs();
+        if (sequence.id === state.currentSequenceId) loadCurrentSequenceToForm();
+        return mcpSequenceSnapshot(sequence);
+    }
+    if (action === 'add-reference') {
+        const reference = request.reference;
+        if (!reference?.filePath && !reference?.base64) return { error: '参考图没有内容' };
+        reference.alias = reference.alias || uniqueReferenceAlias(reference, sequence.references);
+        sequence.references.push(reference);
+        saveSequences();
+        if (sequence.id === state.currentSequenceId) { renderReferences(); loadCurrentSequenceToForm(); }
+        return mcpSequenceSnapshot(sequence);
+    }
+    if (action === 'generation-settings') {
+        // The same size tier and advanced settings generateImages() would send.
+        const profile = imageApiProfiles.getImageApiProfile(sequence.model);
+        const generationConfig = buildGenerationConfig(sequence);
+        if (generationConfig.xaiStorage && !generationConfig.xaiStorage.filename) return { error: '启用 xAI Files 存储时必须填写文件名' };
+        return {
+            imageSize: imageApiProfiles.resolveImageSizePreference(sequence.imageSize, profile.imageSizeOptions) || sequence.imageSize,
+            generationConfig
+        };
+    }
+    if (action === 'remove-reference') {
+        const reference = sequence.references.find(item => item.id === request.referenceId);
+        if (!reference) return { error: '找不到这张参考图' };
+        sequence.references = sequence.references.filter(item => item.id !== request.referenceId);
+        saveSequences();
+        deleteReferenceImageCache(reference);
+        if (sequence.id === state.currentSequenceId) { renderReferences(); loadCurrentSequenceToForm(); }
+        return mcpSequenceSnapshot(sequence);
+    }
+    return { error: '未知操作' };
+}
+
+function installMcpBridge() {
+    window.picgenDesktop.onMcpListSequences?.(request => window.picgenDesktop.replyMcp(request.id, mcpListSequences()));
+    window.picgenDesktop.onMcpMutateSequence?.(request => {
+        Promise.resolve(mcpMutateSequence(request.payload)).then(value => window.picgenDesktop.replyMcp(request.id, value), error => window.picgenDesktop.replyMcp(request.id, { error: error.message }));
+    });
 }
 
 function loadCurrentSequenceToForm() {
@@ -5083,7 +5176,7 @@ function hideSettingsPage() {
 
 function setSettingsMode(mode) {
     // The chat tab is now the "提示词优化" (prompt optimization) settings page.
-    const known = ['image', 'concurrency', 'optimize', 'network', 'output'];
+    const known = ['image', 'concurrency', 'optimize', 'network', 'output', 'mcp'];
     state.settingsMode = known.includes(mode) ? mode : 'image';
     const active = state.settingsMode;
     el.imageSettingsTab.classList.toggle('active', active === 'image');
@@ -5091,11 +5184,13 @@ function setSettingsMode(mode) {
     el.chatSettingsTab.classList.toggle('active', active === 'optimize');
     el.networkSettingsTab.classList.toggle('active', active === 'network');
     el.outputSettingsTab.classList.toggle('active', active === 'output');
+    el.mcpSettingsTab.classList.toggle('active', active === 'mcp');
     el.imageSettingsPanel.hidden = active !== 'image';
     el.concurrencySettingsPanel.hidden = active !== 'concurrency';
     el.chatSettingsPanel.hidden = active !== 'optimize';
     el.networkSettingsPanel.hidden = active !== 'network';
     el.outputSettingsPanel.hidden = active !== 'output';
+    el.mcpSettingsPanel.hidden = active !== 'mcp';
     if (el.newProviderBtn) {
         el.newProviderBtn.hidden = active !== 'image';
         el.newProviderBtn.title = '新建 API 供应商';
@@ -5106,7 +5201,8 @@ function setSettingsMode(mode) {
         [el.concurrencySettingsTab, 'concurrency'],
         [el.chatSettingsTab, 'optimize'],
         [el.networkSettingsTab, 'network'],
-        [el.outputSettingsTab, 'output']
+        [el.outputSettingsTab, 'output'],
+        [el.mcpSettingsTab, 'mcp']
     ]) {
         tab.setAttribute('aria-selected', String(active === tabMode));
     }
@@ -5115,6 +5211,7 @@ function setSettingsMode(mode) {
     if (active === 'optimize') refreshPromptOptimizeSettings();
     if (active === 'network') refreshProxySettings();
     if (active === 'output') refreshOutputDirectorySettings();
+    if (active === 'mcp') refreshMcpSettings();
     if (active === 'image' && !el.settingsOverlay.hidden) { refreshProviderHealth(); refreshUnifiedSuppliers(); }
     refreshLucideIcons();
     // Rebuild after the panel visibility settles so section offsets are correct.
@@ -5274,6 +5371,71 @@ function applyOutputDirectoryConfig(config = {}) {
         : '自定义目录';
     el.resetOutputDirectoryBtn.disabled = state.outputDirectoryConfig.isDefault;
     updateSettingsProviderMeta();
+}
+
+function applyMcpSettings(settings = {}) {
+    state.mcpSettings = settings;
+    el.mcpEnabledToggle.checked = settings.enabled === true;
+    el.mcpUrlInput.value = settings.url || (settings.enabled ? '启动中…' : '');
+    el.mcpPortNotice.hidden = !settings.portFallback;
+    el.mcpPortNotice.textContent = settings.portFallback
+        ? `端口 ${settings.port} 被其他程序占用，本次改用 ${settings.url.match(/:(\d+)\//)?.[1] || '临时端口'}。释放该端口后重启 PicGen，或重新复制客户端配置。`
+        : '';
+    updateSettingsProviderMeta();
+}
+
+async function refreshMcpSettings() {
+    try {
+        applyMcpSettings(await window.picgenDesktop.getMcpSettings());
+    } catch (error) {
+        showToast(`MCP 设置读取失败: ${error.message}`);
+    }
+}
+
+function setMcpControlsBusy(busy) {
+    el.mcpEnabledToggle.disabled = busy;
+    el.mcpRegenerateTokenBtn.disabled = busy;
+}
+
+async function saveMcpSettings() {
+    setMcpControlsBusy(true);
+    try {
+        const settings = await window.picgenDesktop.setMcpEnabled(el.mcpEnabledToggle.checked);
+        applyMcpSettings(settings);
+        showToast(settings.enabled ? 'MCP 服务器已开启' : 'MCP 服务器已关闭');
+    } catch (error) {
+        el.mcpEnabledToggle.checked = !el.mcpEnabledToggle.checked;
+        showToast(`MCP 设置保存失败: ${error.message}`);
+    } finally {
+        setMcpControlsBusy(false);
+    }
+}
+
+async function regenerateMcpToken() {
+    setMcpControlsBusy(true);
+    try {
+        applyMcpSettings(await window.picgenDesktop.regenerateMcpToken());
+        showToast('已重置访问令牌，旧配置已失效，请重新复制客户端配置');
+    } catch (error) {
+        showToast(`重置令牌失败: ${error.message}`);
+    } finally {
+        setMcpControlsBusy(false);
+    }
+}
+
+function mcpClientConfig(settings) {
+    return JSON.stringify({
+        mcpServers: {
+            picgen: { type: 'http', url: settings.url, headers: { Authorization: `Bearer ${settings.token}` } }
+        }
+    }, null, 2);
+}
+
+async function copyMcpClientConfig() {
+    const settings = state.mcpSettings;
+    if (!settings?.url || !settings.token) { showToast('请先启用 MCP 服务器'); return; }
+    await window.picgenDesktop.copyText(mcpClientConfig(settings));
+    showToast('已复制 MCP 客户端配置（含访问令牌，请勿外传）');
 }
 
 async function refreshOutputDirectorySettings() {

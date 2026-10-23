@@ -13,6 +13,10 @@ const previewDecoder = new PreviewDecoder(createThumbnailAsync);
 const { historyThumbnailKey } = require('./historyThumbnailKey');
 const { createSimilarityService, SERVICE: SIMILARITY_SERVICE } = require('./similarityService');
 const { createHistoryUsageStore } = require('./historyUsageStore');
+const { McpHttpServer } = require('./mcpServer');
+const { createMcpLifecycle } = require('./mcpLifecycle');
+const { sniffImageExtension } = require('./imageSniff');
+const { createMcpBridge } = require('./mcpBridge');
 const { createHistoryBinStore, createHistoryTrash, reconcileHistoryBin } = require('./historyTrash');
 const { classifyDragEnd } = require('./historyUsage');
 
@@ -136,6 +140,7 @@ if (process.platform === 'win32') {
 let mainWindow = null;
 let serverRuntime = null;
 let serverRuntimePromise = null;
+let mcpLifecycle = null;
 let errorLogStore = null;
 let outputConfigStore = null;
 let unsubscribeErrorLog = null;
@@ -2005,18 +2010,6 @@ function rememberSaveAsDirectory(directory) {
         .catch(error => console.warn('[SaveAs] remember folder failed:', error.message));
 }
 
-// 按文件头认格式（扩展名可能和内容对不上）→ 'png' | 'jpg' | 'webp' | 'gif' | 'bmp' | 'avif'，认不出为 ''
-function sniffImageExtension(buffer) {
-    if (!Buffer.isBuffer(buffer) || buffer.length < 12) return '';
-    if (buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) return 'png';
-    if (buffer[0] === 0xff && buffer[1] === JPEG_SOI) return 'jpg';
-    if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp';
-    if (buffer.toString('ascii', 0, 4) === 'GIF8') return 'gif';
-    if (buffer.toString('ascii', 0, 2) === 'BM') return 'bmp';
-    if (buffer.toString('ascii', 4, 8) === 'ftyp' && ['avif', 'avis'].includes(buffer.toString('ascii', 8, 12))) return 'avif';
-    return '';
-}
-
 // 另存的副本原样复制。只有历史图文件里缺内嵌提示词、而主进程自己的记录里有提示词时才补写（不信渲染层传来的）。
 async function writeSavedCopy(source, target) {
     const record = await findHistoryRecordByPath(source);
@@ -2776,6 +2769,133 @@ function setupTaskbarTasks() {
     ]);
 }
 
+// MCP settings travel over IPC only. The local REST API answers any origin, so a
+// web page must never be able to read the token or switch the server on there.
+async function readMcpState() {
+    const runtime = await ensureServerRuntime();
+    const config = await runtime.mcpConfigStore.get();
+    return {
+        enabled: config.enabled,
+        port: config.port,
+        token: config.token,
+        url: mcpLifecycle?.server?.url || '',
+        portFallback: mcpLifecycle?.server?.portFallback === true
+    };
+}
+
+async function updateMcpConfig(updates = {}) {
+    await ensureServerRuntime();
+    // A new token restarts the server, so clients holding the old one are cut off at once.
+    await mcpLifecycle.update({ enabled: updates.enabled, regenerateToken: updates.regenerateToken === true });
+    return readMcpState();
+}
+
+function createMcpRuntimeLifecycle(runtime) {
+    return createMcpLifecycle({
+        store: runtime.mcpConfigStore,
+        createServer: config => new McpHttpServer({ api: createMcpRuntimeBridge(runtime), version: app.getVersion(), port: config.port, token: config.token }),
+        onStarted: async running => {
+            await writeMcpPortFile(running);
+            console.log(`[MCP] listening at ${running.url}${running.portFallback ? ' (preferred port unavailable)' : ''}`);
+        },
+        onStopped: () => fs.rm(mcpPortFile(), { force: true }).catch(() => {}),
+        isQuitting: () => isQuitting
+    });
+}
+
+function createMcpRuntimeBridge(runtime) {
+    const imageApiProfiles = require('./imageApiProfiles');
+    const { testImageProviderConnection, testChatProviderConnection, discoverImageProviderCapabilities, testProxyReachability } = require('./apiService');
+    return createMcpBridge({
+        version: app.getVersion(),
+        get mcpUrl() { return mcpLifecycle?.server?.url || ''; },
+        get serverUrl() { return runtime.url; },
+        runtime,
+        imageProfiles: imageApiProfiles,
+        testImage: testImageProviderConnection,
+        testChat: testChatProviderConnection,
+        discover: discoverImageProviderCapabilities,
+        testProxy: () => testProxyReachability({}),
+        getOutputDirectory: () => getOutputDirectoryState(),
+        setOutputDirectory: async directory => { await outputConfigStore.update({ directory }); return getOutputDirectoryState({ ensureExists: true }); },
+        openOutputFolder,
+        listHistory: readHistoryImages,
+        listRecycleBin: listHistoryBin,
+        trashImages: payload => getHistoryTrash().trash({ requestId: `mcp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`, items: payload.items, reason: 'selection', includeProtected: payload.confirmProtected, confirmProtected: payload.confirmProtected ? payload.items.map(item => item.id) : [] }),
+        restoreImages: paths => getHistoryTrash().restore({ paths }),
+        purgeImages: paths => getHistoryTrash().purge({ paths }),
+        findSimilar: query => getSimilarityService().neighbors(query),
+        findSimilarByImage: searchSimilarByImage,
+        similarityGroups: () => getSimilarityService().get({}),
+        copyImage: copyImageToClipboard,
+        saveImageCopy: async (source, destination) => {
+            await writeSavedCopy(source, destination);
+            return { saved: true, filePath: destination, ...await countExternalUse(source, 'save-as') };
+        },
+        saveReference: saveReferenceImage,
+        listErrors: options => errorLogStore?.list(options) || [],
+        clearErrors: () => errorLogStore?.clear() || { removed: 0 },
+        downscale: downscaleForMcp,
+        renderer: {
+            listSequences: () => invokeRenderer('mcp:list-sequences'),
+            mutateSequence: payload => invokeRenderer('mcp:mutate-sequence', payload)
+        },
+        optimize: body => postLocalJson(runtime, '/api/prompts/optimize', body),
+        reverse: body => postLocalJson(runtime, '/api/prompts/reverse', body)
+    });
+}
+
+// The port file holds the token; it must not outlive the server.
+function closeMcpForQuit() {
+    mcpLifecycle?.closeNow();
+    try { require('fs').rmSync(mcpPortFile(), { force: true }); } catch { /* best effort on quit */ }
+}
+
+function mcpPortFile() {
+    return path.join(app.getPath('userData'), 'mcp.json');
+}
+
+async function writeMcpPortFile(running) {
+    const file = mcpPortFile();
+    const payload = JSON.stringify({ url: running.url, port: running.port, token: running.token }, null, 2);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, payload, 'utf8');
+}
+
+function invokeRenderer(channel, payload) {
+    return new Promise((resolve, reject) => {
+        if (!mainWindow || mainWindow.isDestroyed()) { reject(new Error('PicGen 窗口未打开')); return; }
+        const id = `mcp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        const timer = setTimeout(() => { ipcMain.removeListener('desktop:mcp-result', onResult); reject(new Error('界面没有及时响应')); }, 15000);
+        const onResult = (_event, result) => {
+            if (result?.id !== id) return;
+            clearTimeout(timer);
+            ipcMain.removeListener('desktop:mcp-result', onResult);
+            resolve(result.value);
+        };
+        ipcMain.on('desktop:mcp-result', onResult);
+        mainWindow.webContents.send(`desktop:${channel}`, { id, payload });
+    });
+}
+
+async function postLocalJson(runtime, pathname, body) {
+    const response = await fetch(`${runtime.url}${pathname}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '请求失败');
+    return result.prompt;
+}
+
+async function downscaleForMcp(buffer, maxEdge) {
+    const edge = Math.max(64, Math.min(4096, Number(maxEdge) || 1024));
+    try {
+        const sharp = require('sharp');
+        const resized = await sharp(buffer).rotate().resize({ width: edge, height: edge, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+        return { buffer: resized, mimeType: 'image/png' };
+    } catch (error) {
+        throw new Error(`图片无法解码: ${error.message}`);
+    }
+}
+
 // The Node layer (node-fetch) never reads system proxy settings, but Chromium
 // does. Keep both layers on the same mode so the switch means one thing.
 async function applyChromiumProxy(config = {}) {
@@ -2813,11 +2933,14 @@ async function ensureServerRuntime() {
                 failoverConfigFile: path.join(app.getPath('userData'), 'failover-config.json'),
                 legacyFailoverConfigFile: defaultFailoverConfigFile(),
                 proxyConfigFile: path.join(app.getPath('userData'), 'proxy-config.json'),
+                mcpConfigFile: path.join(app.getPath('userData'), 'mcp-config.json'),
                 onProxyConfig: applyChromiumProxy,
                 errorLogStore
             });
             serverRuntime = runtime;
             await applyChromiumProxy(await runtime.proxyConfigStore.get());
+            mcpLifecycle = createMcpRuntimeLifecycle(runtime);
+            mcpLifecycle.reconcile().catch(error => console.error('[MCP] start failed:', error.message));
             return runtime;
         } catch (error) {
             serverRuntimePromise = null;
@@ -3237,6 +3360,9 @@ ipcMain.handle('desktop:copy-text', (_event, text) => {
     writeClipboard('text', String(text || ''));
     return { success: true };
 });
+ipcMain.handle('desktop:mcp-get', loggedIpcHandler({ source: 'system', title: '读取 MCP 设置失败', operation: 'mcp-get' }, readMcpState));
+ipcMain.handle('desktop:mcp-set', loggedIpcHandler({ source: 'system', title: '保存 MCP 设置失败', operation: 'mcp-set' }, updates => updateMcpConfig({ enabled: updates?.enabled === true })));
+ipcMain.handle('desktop:mcp-regenerate-token', loggedIpcHandler({ source: 'system', title: '重置 MCP 令牌失败', operation: 'mcp-regenerate-token' }, () => updateMcpConfig({ regenerateToken: true })));
 ipcMain.on('desktop:set-expanded', (_event, expanded) => setExpanded(!!expanded, { focus: !!expanded }));
 ipcMain.on('desktop:close', () => setExpanded(false, { focus: false }));
 ipcMain.on('desktop:show-context-menu', showDesktopContextMenu);
@@ -3338,17 +3464,27 @@ app.on('activate', () => {
     }
 });
 
+// Every window loads a local file and never navigates; external links go through
+// desktop:open-external. A page that navigated away (a dropped link, an injected
+// href) would keep the preload bridge, including the MCP token, so refuse it.
+app.on('web-contents-created', (_event, contents) => {
+    contents.on('will-navigate', event => event.preventDefault());
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+});
+
 app.on('window-all-closed', async () => {
     if (serverRuntime) {
         serverRuntime.close();
         serverRuntime = null;
     }
+    closeMcpForQuit();
     app.quit();
 });
 
 app.on('before-quit', event => {
     clearInterval(edgeDockTimer);
     isQuitting = true;
+    closeMcpForQuit();
     if (unsubscribeErrorLog) {
         unsubscribeErrorLog();
         unsubscribeErrorLog = null;

@@ -13,6 +13,7 @@ const ProviderManager = require('./providerManager');
 const { UnifiedProviderStore } = require('./providerStore');
 const { FailoverConfigStore, normalizeStrategy } = require('./failoverConfig');
 const { ProxyConfigStore, environmentProxyFor } = require('./proxyConfig');
+const { McpConfigStore } = require('./mcpConfig');
 const {
     optimizePrompt,
     reversePrompt,
@@ -44,6 +45,9 @@ function createServerApp(options = {}) {
     });
     const proxyConfigStore = new ProxyConfigStore({
         filePath: options.proxyConfigFile
+    });
+    const mcpConfigStore = new McpConfigStore({
+        filePath: options.mcpConfigFile
     });
     const providerManager = new ProviderManager();
     const unifiedProviderStore = new UnifiedProviderStore({
@@ -933,6 +937,7 @@ function createServerApp(options = {}) {
         chatProviderStore,
         unifiedProviderStore,
         proxyConfigStore,
+        mcpConfigStore,
         errorLogStore,
         close
     };

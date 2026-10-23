@@ -12,6 +12,7 @@ export function SettingsPage() { return (
 <Action id="chatSettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"wand-sparkles\"></i><span>提示词优化</span>"} />
 <Action id="networkSettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"network\"></i><span>网络设置</span>"} />
 <Action id="outputSettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"folder-cog\"></i><span>保存目录</span>"} />
+<Action id="mcpSettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"cable\"></i><span>MCP</span>"} />
 </div>
 {/* Hover-expand table of contents rail; desktop.js fills it from the visible
     panel's [data-toc-title] sections. */}
@@ -521,6 +522,42 @@ export function SettingsPage() { return (
 <Action id="openConfiguredOutputDirectoryBtn" className="secondary-button" type="button" markup={"<i data-lucide=\"folder-open\"></i><span>打开目录</span>"} />
 <Action id="chooseOutputDirectoryBtn" className="primary-button" type="button" markup={"<i data-lucide=\"folder-search\"></i><span>选择目录</span>"} />
 </div>
+</div>
+</div>
+</div>
+<div id="mcpSettingsPanel" className="settings-panel" hidden>
+<div className="settings-scroll-panel">
+<div className="settings-form">
+<div className="settings-form-head">
+<div className="settings-form-heading-copy">
+<strong>
+<i data-lucide="cable" aria-hidden="true"></i>
+{"MCP 服务器"}
+</strong>
+<span>
+{"开启后，外部 AI 可以通过本机 MCP 接口操作 PicGen：生成图片、管理序列、读取历史"}
+</span>
+</div>
+</div>
+<label className="provider-enabled-field">
+<span>{"服务状态"}</span>
+<span className="switch-line">
+<input id="mcpEnabledToggle" type="checkbox" />
+<span>{"启用 MCP 服务器"}</span>
+</span>
+</label>
+<label className="full-field">
+<span className="settings-field-label">
+<span>{"连接地址"}</span>
+<Action className="settings-help-icon" type="button" title="只监听 127.0.0.1，局域网无法访问，网页也无法调用。客户端配置里带有访问令牌，请勿外传；泄露后点「重置令牌」，旧配置立即失效。" aria-label="MCP 连接地址说明" markup={"<i data-lucide=\"circle-help\"></i>"} />
+</span>
+<Input inputSize="sm" id="mcpUrlInput" type="text" readOnly spellCheck={false} placeholder="启用后显示" />
+</label>
+<div className="settings-actions">
+<Action id="mcpCopyConfigBtn" className="secondary-button" type="button" markup={"<i data-lucide=\"copy\"></i><span>复制客户端配置</span>"} />
+<Action id="mcpRegenerateTokenBtn" className="secondary-button" type="button" markup={"<i data-lucide=\"key-round\"></i><span>重置令牌</span>"} />
+</div>
+<p id="mcpPortNotice" className="settings-hint" role="status" hidden></p>
 </div>
 </div>
 </div>

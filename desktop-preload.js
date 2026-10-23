@@ -117,6 +117,20 @@ contextBridge.exposeInMainWorld('picgenDesktop', {
         ipcRenderer.on('desktop:prefs-closed', listener);
         return () => ipcRenderer.removeListener('desktop:prefs-closed', listener);
     },
+    onMcpListSequences: (callback) => {
+        const listener = (_event, request) => callback(request);
+        ipcRenderer.on('desktop:mcp:list-sequences', listener);
+        return () => ipcRenderer.removeListener('desktop:mcp:list-sequences', listener);
+    },
+    onMcpMutateSequence: (callback) => {
+        const listener = (_event, request) => callback(request);
+        ipcRenderer.on('desktop:mcp:mutate-sequence', listener);
+        return () => ipcRenderer.removeListener('desktop:mcp:mutate-sequence', listener);
+    },
+    replyMcp: (id, value) => ipcRenderer.send('desktop:mcp-result', { id, value }),
+    getMcpSettings: () => ipcRenderer.invoke('desktop:mcp-get'),
+    setMcpEnabled: (enabled) => ipcRenderer.invoke('desktop:mcp-set', { enabled }),
+    regenerateMcpToken: () => ipcRenderer.invoke('desktop:mcp-regenerate-token'),
     moveImagePreview: (point) => ipcRenderer.send('desktop:move-image-preview', point),
     hideImagePreview: () => ipcRenderer.send('desktop:hide-image-preview')
 });
