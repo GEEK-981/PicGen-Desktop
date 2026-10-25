@@ -1,6 +1,6 @@
 {
   "name": "nanobanana2",
-  "version": "2.3.20",
+  "version": "2.3.21",
   "description": "PicGen AI image generator",
   "author": "PicGen",
   "main": "electron-main.js",

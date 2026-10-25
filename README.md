@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.20</b></a>
+  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.21</b></a>
   ·
   <a href="#使用说明">使用说明</a>
   ·
@@ -33,7 +33,7 @@ PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个�
 
 ## 下载安装
 
-1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.20-x64.exe`。
+1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.21-x64.exe`。
 2. 这是**便携版**，不用安装，双击就能运行。系统要求 Windows 10 / 11 64 位。
 3. 第一次运行会在 exe 旁边创建 `PicGenData` 文件夹，里面是你的供应商配置、历史图片和加密密钥用的环境。**换电脑或换位置时，把 exe 和 `PicGenData` 整个文件夹一起搬走**，配置和历史就都还在。
 4. Windows 可能提示"已保护你的电脑"（因为没有代码签名），点"更多信息 → 仍要运行"即可。
@@ -374,6 +374,13 @@ PicGen 按模型名判断协议和能力。请确认模型名和供应商文档�
 
 **我的图片和 Key 会被上传吗？**
 不会。PicGen 只请求你自己配置的接口地址；相似图分析用的是内置在软件里的本地模型。
+
+## 2.3.21 更新内容
+
+- **MCP 服务器**：设置 → MCP 打开开关后，Claude Code、Cursor、Claude Desktop、Codex 等 AI 客户端可以通过本机 MCP 接口操作 PicGen：批量生成图片、管理序列、读取历史。选好客户端类型后点「复制客户端配置」即可接入。
+- **只在本机可用、带令牌**：只监听 `127.0.0.1`（默认端口 47823，被占用时自动换端口），局域网和网页都无法调用；HTTP 配置里带访问令牌，泄露后点「重置令牌」，旧配置立即失效。
+- **stdio 接入**：Claude Desktop、Codex 走 stdio 桥接（需本机装 Node.js 18+），每次自动读取当前地址和令牌，端口或令牌变了不用改配置。
+- **每日张数上限**：agent 通过 MCP 提交的图片按本地日期合计，可设上限（0 = 不限）；一次请求会超额时整批拒绝。agent 的任务直接进队列和历史，不新建页签；可能已入队的请求不会被自动重发，避免重复扣费。
 
 ## 2.3.20 更新内容
 
