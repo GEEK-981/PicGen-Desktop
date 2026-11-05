@@ -20,7 +20,7 @@ function promoteArtifact(source, destination, rename = fs.renameSync) {
     }
 }
 
-async function buildPortable({ root = path.resolve(__dirname, '..'), unpacked = false, build } = {}) {
+async function buildPortable({ root = path.resolve(__dirname, '..'), unpacked = false, build, beforePromote } = {}) {
     const dist = path.join(root, 'dist');
     fs.mkdirSync(dist, { recursive: true });
     // Real builds only (tests inject `build`): the model ships as an extraResource, so make sure
@@ -48,12 +48,27 @@ async function buildPortable({ root = path.resolve(__dirname, '..'), unpacked = 
     const output = path.join(dist, 'release');
     fs.mkdirSync(output, { recursive: true });
     const destination = path.join(output, name);
+    // Close running clients only now, right before the EXE is replaced, so the
+    // app stays usable for the minutes the build itself takes.
+    if (beforePromote) await beforePromote(destination);
     return [promoteArtifact(source, destination)];
 }
 
 if (require.main === module) {
-    buildPortable({ unpacked: process.argv.includes('--dir') }).then(paths => {
+    const unpacked = process.argv.includes('--dir');
+    // Portable builds close running PicGen clients first (waiting for their generation
+    // tasks to finish) and start the new build afterwards. --no-close / --no-launch opt out.
+    const manageClients = !unpacked && process.platform === 'win32';
+    const instances = manageClients ? require('./picgen-instances') : null;
+    const beforePromote = manageClients && !process.argv.includes('--no-close')
+        ? () => instances.closeRunningPicGen()
+        : undefined;
+    buildPortable({ unpacked, beforePromote }).then(paths => {
         for (const artifact of paths) console.log(`Built: ${artifact}`);
+        if (manageClients && !process.argv.includes('--no-launch') && paths[0]) {
+            const pid = instances.launchPicGen(paths[0]);
+            console.log(`Launched: ${paths[0]}${pid ? ` (pid ${pid})` : ''}`);
+        }
     }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }
 

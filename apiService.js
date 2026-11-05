@@ -9,6 +9,7 @@ const imageApiProfiles = require('./imageApiProfiles');
 const { PROTOCOLS, normalizeProtocol, inferProtocol } = require('./protocolRouter');
 const grsaiNanoBanana = require('./imageAdapters/grsaiNanoBanana');
 const grsaiGptImage = require('./imageAdapters/grsaiGptImage');
+const toapisImage = require('./imageAdapters/toapisImage');
 const { throwIfAborted, createLinkedAbortController, delay, withRequestTimeout } = require('./requestLifecycle');
 
 // Relay stations sit behind slow TLS terminators; observed handshakes range from
@@ -1168,8 +1169,9 @@ async function testImageProviderConnection(config) {
     const resolvedProtocol = protocol === PROTOCOLS.AUTO
         ? inferProtocol({ baseUrl: provider }, model)
         : protocol;
-    const useGeminiModels = resolvedProtocol === PROTOCOLS.GEMINI_NATIVE
-        || (!model && providerLower.includes('generativelanguage.googleapis.com'));
+    // ToAPIs 的模型列表是 OpenAI 风格 /v1/models，Gemini 模型也一样
+    const useGeminiModels = !toapisImage.isToapisProvider(provider) && (resolvedProtocol === PROTOCOLS.GEMINI_NATIVE
+        || (!model && providerLower.includes('generativelanguage.googleapis.com')));
     const url = useGeminiModels ? geminiModelsUrl(provider, apiKey) : openAIModelsUrl(provider);
     const headers = useGeminiModels
         ? { 'Content-Type': 'application/json' }
@@ -1565,8 +1567,9 @@ async function discoverImageProviderCapabilities(config) {
     const resolvedProtocol = protocol === PROTOCOLS.AUTO
         ? inferProtocol({ baseUrl: provider }, model)
         : protocol;
-    const useGeminiModels = resolvedProtocol === PROTOCOLS.GEMINI_NATIVE
-        || (!model && providerLower.includes('generativelanguage.googleapis.com'));
+    // ToAPIs 的模型列表是 OpenAI 风格 /v1/models，Gemini 模型也一样
+    const useGeminiModels = !toapisImage.isToapisProvider(provider) && (resolvedProtocol === PROTOCOLS.GEMINI_NATIVE
+        || (!model && providerLower.includes('generativelanguage.googleapis.com')));
     const url = useGeminiModels ? geminiModelsUrl(provider, apiKey) : openAIModelsUrl(provider);
     const headers = useGeminiModels
         ? { Accept: 'application/json', 'x-goog-api-key': apiKey }
@@ -1629,6 +1632,164 @@ function isRetryableStatus(status) {
     return [408, 409, 425, 429, 500, 502, 503, 504].includes(Number(status));
 }
 
+// ToAPIs 异步图片任务：上传参考图 → 提交 → 轮询 → 下载。轮询间隔按文档要求 ≥5 秒并加抖动，
+// 429/503 时优先读 Retry-After。任务一旦被接受就不再自动重提，避免重复扣费。
+const TOAPIS_TASK_TIMEOUT_MS = 10 * 60 * 1000;
+const TOAPIS_POLL_INTERVAL_MS = 5000;
+
+function retryAfterMs(response, fallbackMs) {
+    const header = response?.headers?.get?.('retry-after');
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(60000, seconds * 1000);
+    const date = header ? Date.parse(header) : NaN;
+    if (Number.isFinite(date)) return Math.max(0, Math.min(60000, date - Date.now()));
+    return fallbackMs;
+}
+
+async function readJsonBody(response) {
+    const text = await response.text();
+    try { return { text, data: JSON.parse(text || '{}') }; } catch { return { text, data: {} }; }
+}
+
+async function uploadToapisImage(provider, apiKey, image, signal, index) {
+    const mimeType = image.mimeType || 'image/png';
+    const ext = (mimeType.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const url = toapisImage.uploadUrl(provider);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const form = new FormData();
+        form.append('file', Buffer.from(image.base64, 'base64'), { filename: `picgen_ref_${index + 1}.${ext}`, contentType: mimeType });
+        form.append('purpose', 'generation');
+        const response = await fetch(url, {
+            method: 'POST', body: form, signal, agent: agentFor(url),
+            headers: { ...form.getHeaders(), Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }
+        });
+        const { text, data } = await readJsonBody(response);
+        if (response.ok) {
+            const uploaded = toapisImage.extractUploadUrl(data);
+            if (!uploaded) throw new Error(`ToAPIs 上传参考图返回数据异常: ${text.slice(0, 200)}`);
+            return uploaded;
+        }
+        // 上传不计费，限流和网关错误可以安全重试
+        if (attempt < 3 && isRetryableStatus(response.status)) {
+            await delay(retryAfterMs(response, 1000 * attempt), signal);
+            continue;
+        }
+        throw createApiError(`ToAPIs 上传参考图失败: ${response.status} - ${toapisImage.errorMessage(data) || text.slice(0, 200)}`,
+            { status: response.status, retryable: isRetryableStatus(response.status) });
+    }
+    throw new Error('ToAPIs 上传参考图失败');
+}
+
+async function generateToapisImage(config, callbacks = {}) {
+    const { provider, apiKey, model, prompt, ratio = '1:1', imageSize = '1K', referenceImages = [], maskImage = null, generationConfig = {} } = config;
+    if (!provider || !apiKey || !model || !prompt) throw new Error('缺少必要的配置参数');
+    const providerKind = toapisImage.isGeminiModel(model) ? 'toapis-gemini' : 'toapis-gpt';
+    const rules = toapisImage.modelRules(model);
+    const controller = createLinkedAbortController(config.signal);
+    const signal = controller.signal;
+    let didTimeout = false;
+    let acceptedTaskId = '';
+    const timeoutId = setTimeout(() => { didTimeout = true; controller.abort(); }, TOAPIS_TASK_TIMEOUT_MS);
+    const authHeaders = { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' };
+    try {
+        const usableRefs = referenceImages.filter(ref => ref?.base64);
+        if (usableRefs.length > rules.maxRefs) {
+            throw createApiError(`ToAPIs 模型 ${model} 最多支持 ${rules.maxRefs} 张参考图（当前 ${usableRefs.length} 张）`, { retryable: false, countsAsFailure: false });
+        }
+        if (usableRefs.length) emitProgress(callbacks, { phase: 'uploading', providerKind, displayProgress: 3, message: `Uploading ${usableRefs.length} reference image(s)` });
+        const referenceUrls = await Promise.all(usableRefs.map((ref, index) => uploadToapisImage(provider, apiKey, ref, signal, index)));
+        const maskUrl = maskImage?.base64 && rules.mask ? await uploadToapisImage(provider, apiKey, maskImage, signal, usableRefs.length) : '';
+        const body = toapisImage.buildGenerateBody({
+            model, prompt: withAspectRatioInstruction(prompt, ratio, generationConfig, imageSize),
+            ratio, imageSize, referenceUrls, maskUrl, generationConfig, resolvePixelSize: resolveOpenAIImageSize
+        });
+        console.log(`[apiService] mode=toapis, model=${model}, keys=${Object.keys(body).join(',')}, refs=${referenceUrls.length}`);
+        emitProgress(callbacks, { phase: 'requesting', providerKind, displayProgress: 5, message: 'Submitting image task' });
+
+        const submitUrl = toapisImage.generateUrl(provider);
+        const submit = await fetch(submitUrl, {
+            method: 'POST', signal, agent: agentFor(submitUrl),
+            headers: { ...authHeaders, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const submitted = await readJsonBody(submit);
+        if (!submit.ok) {
+            throw createApiError(`ToAPIs 提交任务失败: ${submit.status} - ${toapisImage.errorMessage(submitted.data) || submitted.text.slice(0, 240)}`,
+                { status: submit.status, retryable: isRetryableStatus(submit.status), retryAfter: submit.headers.get('retry-after') || '' });
+        }
+        const taskId = toapisImage.extractTaskId(submitted.data);
+        if (!taskId) throw createApiError(`ToAPIs 提交响应缺少任务 ID: ${submitted.text.slice(0, 240)}`, { ambiguous: true, code: 'OUTCOME_UNCERTAIN' });
+        acceptedTaskId = taskId;
+        console.log(`[apiService] ToAPIs 任务已提交: ${taskId}`);
+
+        let payload = submitted.data;
+        const pollIntervalMs = Math.max(1, Number(callbacks.toapisPollIntervalMs) || TOAPIS_POLL_INTERVAL_MS);
+        let waitMs = pollIntervalMs;
+        let transientFailures = 0;
+        while (true) {
+            const status = toapisImage.state(payload);
+            if (toapisImage.isDone(status)) {
+                const [resultUrl] = toapisImage.extractResultUrls(payload);
+                if (!resultUrl) throw new Error(`ToAPIs 任务已完成但没有图片 URL: ${JSON.stringify(payload).slice(0, 240)}`);
+                emitProgress(callbacks, { phase: 'polling', providerKind, displayProgress: 90, message: 'ToAPIs image ready' });
+                return resultUrl.startsWith('data:image/')
+                    ? parseDataUrl(resultUrl, null)
+                    : await downloadImageAsBase64(resultUrl, { ...callbacks, signal });
+            }
+            if (toapisImage.isFailed(status)) {
+                throw createApiError(`ToAPIs 任务失败: ${toapisImage.errorMessage(payload) || status}`, { retryable: false, ambiguous: false });
+            }
+            const progress = Math.max(0, Math.min(100, Number(payload.progress) || 0));
+            emitProgress(callbacks, { phase: 'polling', providerKind, displayProgress: Math.max(10, Math.min(85, 10 + progress * 0.75)), message: `Waiting for ToAPIs image (${status || 'pending'})` });
+            await delay(waitMs + Math.floor(Math.random() * Math.min(1500, waitMs * 0.3)), signal);
+            const pollUrl = toapisImage.taskUrl(provider, taskId);
+            const poll = await fetch(pollUrl, { method: 'GET', signal, agent: agentFor(pollUrl), headers: authHeaders });
+            const polled = await readJsonBody(poll);
+            if (poll.ok) {
+                payload = polled.data;
+                waitMs = pollIntervalMs;
+                transientFailures = 0;
+                continue;
+            }
+            if (isRetryableStatus(poll.status) && transientFailures < 6) {
+                transientFailures += 1;
+                waitMs = retryAfterMs(poll, Math.min(30000, pollIntervalMs * 2 ** transientFailures));
+                continue;
+            }
+            throw createApiError(`ToAPIs 查询任务失败: ${poll.status} - ${toapisImage.errorMessage(polled.data) || polled.text.slice(0, 200)}`, { status: poll.status });
+        }
+    } catch (error) {
+        const isAbortError = error?.name === 'AbortError' || signal.aborted;
+        let normalizedError = error instanceof Error ? error : new Error(String(error));
+        if (isAbortError && didTimeout) {
+            normalizedError = createApiError(
+                `ToAPIs 任务 ${Math.round(TOAPIS_TASK_TIMEOUT_MS / 60000)} 分钟内未完成${acceptedTaskId ? `（taskId=${acceptedTaskId}）` : ''}；结果状态未知，PicGen 不会自动重复提交`,
+                { retryable: false, ambiguous: true, code: 'OUTCOME_UNCERTAIN' });
+        } else if (isAbortError) {
+            normalizedError.name = 'AbortError';
+            normalizedError.retryable = false;
+            normalizedError.ambiguous = false;
+            normalizedError.countsAsFailure = false;
+        } else if (normalizedError.retryable == null) {
+            const safeNetworkFailure = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED'].includes(error.code);
+            normalizedError.retryable = safeNetworkFailure && !acceptedTaskId;
+            normalizedError.ambiguous = !safeNetworkFailure && !!error.code;
+            normalizedError.countsAsFailure = true;
+        }
+        // 任务被接受后的失败（轮询、下载）不能再触发一次付费提交
+        if (acceptedTaskId && !isAbortError && !/任务失败/.test(normalizedError.message)) {
+            normalizedError.retryable = false;
+            normalizedError.ambiguous = true;
+            normalizedError.providerTaskId = acceptedTaskId;
+        }
+        throw normalizedError;
+    } finally {
+        clearTimeout(timeoutId);
+        controller.abort();
+        controller.dispose?.();
+    }
+}
+
 /**
  * 服务端生成图片 — 支持全部 Gemini API 参数
  * @param {Object} config
@@ -1675,6 +1836,7 @@ async function generateImageRequest(config, callbacks = {}) {
     const resolvedProtocol = requestedProtocol === PROTOCOLS.AUTO
         ? inferProtocol({ baseUrl: provider }, model)
         : requestedProtocol;
+    if (toapisImage.shouldUse(provider, model, resolvedProtocol)) return generateToapisImage(config, callbacks);
     const useGrsaiNanoBanana = resolvedProtocol === PROTOCOLS.GRSAI_NANO_BANANA
         || grsaiNanoBanana.shouldUse(provider, model, resolvedProtocol);
     const useGrsaiGptImage = grsaiGptImage.shouldUse(provider, model, resolvedProtocol);
@@ -2581,6 +2743,8 @@ module.exports = {
         buildOpenAIImageRequest,
         buildXAIImageRequest,
         buildGrsaiGptImageRequest: grsaiGptImage.buildGenerateRequest,
+        buildToapisImageBody: toapisImage.buildGenerateBody,
+        generateToapisImage,
         promptAspectRatio,
         withAspectRatioInstruction,
         createApiError,

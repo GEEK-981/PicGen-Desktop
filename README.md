@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.22</b></a>
+  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.23</b></a>
   ·
   <a href="#使用说明">使用说明</a>
   ·
@@ -33,7 +33,7 @@ PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个�
 
 ## 下载安装
 
-1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.22-x64.exe`。
+1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.23-x64.exe`。
 2. 这是**便携版**，不用安装，双击就能运行。系统要求 Windows 10 / 11 64 位。
 3. 第一次运行会在 exe 旁边创建 `PicGenData` 文件夹，里面是你的供应商配置、历史图片和加密密钥用的环境。**换电脑或换位置时，把 exe 和 `PicGenData` 整个文件夹一起搬走**，配置和历史就都还在。
 4. Windows 可能提示"已保护你的电脑"（因为没有代码签名），点"更多信息 → 仍要运行"即可。
@@ -374,6 +374,12 @@ PicGen 按模型名判断协议和能力。请确认模型名和供应商文档�
 
 **我的图片和 Key 会被上传吗？**
 不会。PicGen 只请求你自己配置的接口地址；相似图分析用的是内置在软件里的本地模型。
+
+## 2.3.23 更新内容
+
+- **支持 ToAPIs 中转站（GPT 与 Gemini）**：供应商地址填 `https://toapis.cn`（或 `toapis.com`）即可。PicGen 按 ToAPIs 的异步任务接口提交、轮询并下载结果，参考图会先自动上传。支持 gpt-image-2 / 2-vip / 2-official、2.5 Flare / Sunburst（普通与 official）、2.6 Flare / Sunburst official，以及 Gemini 3 Pro / 3.1 Flash（普通、VIP、official）、Nano Banana 2.1、2.5 Flash 图像模型。
+- **局部编辑**：ToAPIs 上 gpt-image-2-official 与 2.6 official 使用原生蒙版，其余模型自动改用红色涂抹定位图。
+- **打包自动换版本**（开发者）：`npm run build:win:portable` 会在替换 exe 前关闭运行中的 PicGen（有生成任务时先等任务完成），打包完成后自动启动新版本。
 
 ## 2.3.22 更新内容
 

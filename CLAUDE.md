@@ -25,6 +25,8 @@ npm run build:win:portable # Build Windows portable executable (recommended)
 # Staging: dist/.portable-build-* (auto-cleaned after success)
 ```
 
+`build:win:portable` closes running PicGen clients right before it replaces the EXE (it first waits for their pending/running generation tasks and aborts after 10 min rather than kill them — `scripts/picgen-instances.js`), then launches the new build. Pass `--no-close` / `--no-launch` to opt out.
+
 **Portable builds** store data in a `PicGenData` folder next to the executable. Move the entire folder (including `Local State`) to preserve history, suppliers, and encryption context for saved keys.
 
 ### Testing
