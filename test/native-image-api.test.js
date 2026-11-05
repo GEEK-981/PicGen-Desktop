@@ -161,6 +161,44 @@ test('routes Grsai GPT Image 2.5 through /v1/api/generate', async () => {
     }
 });
 
+test('supports Grsai GPT Image 2.6 as its own 2.5-generation family', () => {
+    for (const model of ['gpt-image-2.6', 'GPT Image 2.6', 'openai/gpt-image-2.6']) {
+        assert.equal(profiles.imageApiKind(model), 'openai', model);
+        assert.equal(profiles.isOpenAIImage25Model(model), true, model);
+        assert.equal(profiles.isOpenAIImage2Model(model), false, model);
+        assert.equal(profiles.openAIImageFamily(model), 'gpt-image-2.6', model);
+        const profile = profiles.getImageApiProfile(model);
+        assert.deepEqual(profile.imageSizeOptions.map(option => option.value), ['1K', '2K', '4K', 'custom']);
+        assert.deepEqual(profile.qualityOptions.map(option => option.value), ['auto', 'low', 'medium', 'high', 'xhigh', 'max']);
+        // Grsai documents transparency only for 2-vip / 2.5-flare / 2.5-sunburst.
+        assert.deepEqual(profile.backgroundOptions.map(option => option.value), ['auto', 'opaque']);
+        assert.equal(grsaiGptImage.isModel(model), true, model);
+        assert.equal(grsaiGptImage.shouldUse('https://grsai.dakka.com.cn/', model, 'auto'), true, model);
+    }
+    const request = _test.buildGrsaiGptImageRequest({
+        provider: 'https://grsai.dakka.com.cn/',
+        model: 'gpt-image-2.6',
+        prompt: 'wide scene',
+        ratio: '16:9',
+        imageSize: '1K',
+        generationConfig: { gptQuality: 'auto', gptBackground: 'auto' },
+        resolveSize: _test.resolveOpenAIImageSize
+    });
+    assert.equal(request.url, 'https://grsai.dakka.com.cn/v1/api/generate');
+    assert.deepEqual(request.body, {
+        model: 'gpt-image-2.6',
+        prompt: 'wide scene',
+        images: [],
+        aspectRatio: '1280x720',
+        quality: 'auto',
+        replyType: 'json'
+    });
+    assert.throws(() => _test.buildGrsaiGptImageRequest({
+        provider: 'https://grsaiapi.com', model: 'gpt-image-2.6', prompt: 'cutout',
+        generationConfig: { gptBackground: 'transparent' }, resolveSize: _test.resolveOpenAIImageSize
+    }), /不支持透明背景/);
+});
+
 test('does not mistake gpt-image-mini for a Gemini model', () => {
     // 归一化后是 gptimagemini，尾部含 "gemini" 子串，曾被误判成 Gemini 模型，
     // 导致比例下拉框、1K/2K/4K 和 gemini-native 协议全部用错。

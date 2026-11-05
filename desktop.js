@@ -55,6 +55,8 @@ const state = {
     // 正在进行的「就地覆盖」优化流（null＝空闲）。存在时按钮即“停止”。
     promptOptimizeRun: null,
     promptOptimizeStarting: false,
+    globalPromptEnabled: false,
+    globalPromptText: '',
     promptOptimizeStartTicket: null,
     // 上一次「停止」手势的时间。停止与优化共用一颗按钮，停止后立刻再点会重新开跑，
     // 而用户「停一下没反应就再点一下」的余手正好落在这个窗口里 —— 越点越跑。
@@ -203,6 +205,7 @@ async function init() {
     bindFormEvents();
     installMcpBridge();
     loadPromptOptimizeSettings();
+    loadGlobalPromptSettings();
 
     state.serverUrl = await window.picgenDesktop.getServerUrl();
     prepareApiStorage();
@@ -378,6 +381,7 @@ function cacheElements() {
     el.promptDropOverlay = document.getElementById('promptDropOverlay');
     el.generateBtn = document.getElementById('generateBtn');
     el.optimizePromptBtn = document.getElementById('optimizePromptBtn');
+    el.globalPromptHost = document.getElementById('globalPromptHost');
     el.optimizePromptIcon = document.getElementById('optimizePromptIcon');
     el.optimizePromptLabel = document.getElementById('optimizePromptLabel');
     el.stopBtn = document.getElementById('stopBtn');
@@ -5231,6 +5235,56 @@ function loadPromptOptimizeSettings() {
     updateOptimizeButtonVisibility();
 }
 
+// 全局提示词：生成区「优化」旁的开关，开启后每次提交任务都附加到提示词末尾。
+// 只存在本机 localStorage；提交时附加，不写回序列里的提示词。
+const GLOBAL_PROMPT_ENABLED_KEY = 'picgen.globalPromptEnabled';
+const GLOBAL_PROMPT_TEXT_KEY = 'picgen.globalPromptText';
+
+function appendGlobalPrompt(prompt) {
+    const append = rendererUtils?.appendGlobalPrompt;
+    return append ? append(prompt, state.globalPromptText, state.globalPromptEnabled) : String(prompt || '').trim();
+}
+
+function loadGlobalPromptSettings() {
+    try {
+        state.globalPromptEnabled = localStorage.getItem(GLOBAL_PROMPT_ENABLED_KEY) === '1';
+        state.globalPromptText = String(localStorage.getItem(GLOBAL_PROMPT_TEXT_KEY) || '');
+    } catch { state.globalPromptEnabled = false; state.globalPromptText = ''; }
+    renderGlobalPromptControl();
+}
+
+function saveGlobalPromptSettings({ enabled = state.globalPromptEnabled, text = state.globalPromptText } = {}) {
+    state.globalPromptText = String(text || '').trim();
+    // 内容为空时开着也没有意义：打开开关却什么都不附加，只会让人误以为生效了。
+    state.globalPromptEnabled = Boolean(enabled) && Boolean(state.globalPromptText);
+    try {
+        localStorage.setItem(GLOBAL_PROMPT_ENABLED_KEY, state.globalPromptEnabled ? '1' : '0');
+        localStorage.setItem(GLOBAL_PROMPT_TEXT_KEY, state.globalPromptText);
+    } catch { /* storage unavailable */ }
+    renderGlobalPromptControl();
+}
+
+function renderGlobalPromptControl() {
+    if (!el.globalPromptHost) return;
+    window.PicGenAppica?.renderGlobalPrompt?.(el.globalPromptHost, {
+        enabled: state.globalPromptEnabled,
+        text: state.globalPromptText,
+        onToggle: enabled => {
+            if (enabled && !state.globalPromptText.trim()) {
+                showToast('请先点击“全局”填写全局提示词', 'warning');
+                return;
+            }
+            saveGlobalPromptSettings({ enabled });
+            showToast(enabled ? '全局提示词已开启，每次任务都会附加' : '全局提示词已关闭', 'success');
+        },
+        onSave: ({ text, enabled }) => {
+            saveGlobalPromptSettings({ text, enabled });
+            showToast(state.globalPromptEnabled ? '全局提示词已保存并开启' : '全局提示词已保存（未开启）', 'success');
+        }
+    });
+}
+
+
 async function refreshRoutingRanking() {
     const container = el.routingRanking;
     const strategy = el.providerStrategySelect.value;
@@ -7915,7 +7969,7 @@ async function generateImages() {
         try { orderedReferences = workspaceMaskReferences(sequence, pendingMaskEdit); }
         catch (error) { state.pendingMaskEdits.delete(sequence.id); renderPendingMaskEdit(); showToast(error.message, 'warning'); return; }
     }
-    const prompt = resolvePromptMentions({ ...sequence, references: orderedReferences }).trim();
+    const prompt = appendGlobalPrompt(resolvePromptMentions({ ...sequence, references: orderedReferences }));
     const count = pendingMaskEdit ? 1 : Math.min(5, parseInt(sequence.count, 10) || 1);
     const providerUrl = preset?.baseUrl || preset?.url || '';
 

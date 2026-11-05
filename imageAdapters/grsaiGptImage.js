@@ -1,6 +1,6 @@
 'use strict';
 
-// Grsai exposes GPT Image 2/2.5 through a vendor-specific endpoint. The
+// Grsai exposes GPT Image 2/2.5/2.6 through a vendor-specific endpoint. The
 // request uses `images` and `aspectRatio`, and asynchronous jobs are queried
 // from /v1/api/result instead of OpenAI's /v1/images/* endpoints.
 
@@ -17,7 +17,8 @@ function isModel(model = '') {
     const value = String(model || '').toLowerCase().replace(/[\s_\/-]/g, '');
     return value === 'gptimage2' || value === 'gptimage2vip'
         || value === 'gptimage2.5' || value === 'gptimage2.5flare'
-        || value === 'gptimage2.5sunburst' || value.includes('gptimage25');
+        || value === 'gptimage2.5sunburst' || value.includes('gptimage25')
+        || value.includes('gptimage2.6') || value.includes('gptimage26');
 }
 
 function shouldUse(provider, model, protocol = '') {
@@ -36,7 +37,8 @@ function asDataUrl(ref = {}) {
 
 function modelNeedsPixels(model = '') {
     const value = String(model || '').toLowerCase();
-    return value.includes('2.5') || value.includes('vip');
+    // 2.6 is documented only by an example with a pixel size (1024x1024).
+    return value.includes('2.5') || value.includes('2.6') || value.includes('vip');
 }
 
 // `background` is a Grsai-side extension over the OpenAI field: it accepts only

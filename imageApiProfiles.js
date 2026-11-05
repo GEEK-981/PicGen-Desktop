@@ -172,6 +172,7 @@
     function isOpenAIImage2Model(model = '') {
         const normalized = normalizeModelKeyword(model);
         if (normalized.includes('gptimage25') || normalized.includes('gptimage2.5')) return false;
+        if (normalized.includes('gptimage26') || normalized.includes('gptimage2.6')) return false;
         if (normalized.includes('gptimage2')) return true;
         if (belongsToOtherVendor(normalized, 'openai')) return false;
         return normalized === 'image2' || normalized.endsWith('image2');
@@ -183,12 +184,16 @@
         return normalized.includes('gptimage25')
             || normalized.includes('gptimage2vip')
             || normalized === 'image25'
-            || normalized.includes('gptimage2.5');
+            || normalized.includes('gptimage2.5')
+            // GPT Image 2.6 (Grsai) shares the 2.5 size envelope and quality tiers.
+            || normalized.includes('gptimage26')
+            || normalized.includes('gptimage2.6');
     }
 
     function openAIImageFamily(model = '') {
         const normalized = normalizeModelKeyword(model);
         if (isOpenAIImage25Model(model)) {
+            if (normalized.includes('gptimage26') || normalized.includes('gptimage2.6')) return 'gpt-image-2.6';
             if (normalized.includes('flare')) return 'gpt-image-2.5-flare';
             if (normalized.includes('sunburst')) return 'gpt-image-2.5-sunburst';
             return 'gpt-image-2.5';
@@ -299,7 +304,7 @@
         const apiKind = imageApiKind(model);
         const family = openAIImageFamily(model);
         const isGptImage = family.startsWith('gpt-image') || family === 'openai-image';
-        const isGptImage25 = family.startsWith('gpt-image-2.5') || family === 'gpt-image-2-vip';
+        const isGptImage25 = family.startsWith('gpt-image-2.5') || family === 'gpt-image-2.6' || family === 'gpt-image-2-vip';
         const isDallE = family.startsWith('dall-e');
 
         if (apiKind === 'gemini') {
@@ -379,7 +384,10 @@
                         : isGptImage25
                             ? labelOptions(['auto', 'low', 'medium', 'high', 'xhigh', 'max'])
                             : labelOptions(['auto', 'low', 'medium', 'high']),
-                backgroundOptions: isGptImage25
+                // Grsai documents transparent only for 2-vip / 2.5-flare / 2.5-sunburst, not 2.6.
+                backgroundOptions: family === 'gpt-image-2.6'
+                    ? labelOptions(['auto', 'opaque'])
+                    : isGptImage25
                     ? labelOptions(['auto', 'opaque', 'transparent'])
                     : family === 'gpt-image-2'
                         ? labelOptions(['auto', 'opaque'])

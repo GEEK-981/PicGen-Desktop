@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.21</b></a>
+  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.22</b></a>
   ·
   <a href="#使用说明">使用说明</a>
   ·
@@ -33,7 +33,7 @@ PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个�
 
 ## 下载安装
 
-1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.21-x64.exe`。
+1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.22-x64.exe`。
 2. 这是**便携版**，不用安装，双击就能运行。系统要求 Windows 10 / 11 64 位。
 3. 第一次运行会在 exe 旁边创建 `PicGenData` 文件夹，里面是你的供应商配置、历史图片和加密密钥用的环境。**换电脑或换位置时，把 exe 和 `PicGenData` 整个文件夹一起搬走**，配置和历史就都还在。
 4. Windows 可能提示"已保护你的电脑"（因为没有代码签名），点"更多信息 → 仍要运行"即可。
@@ -374,6 +374,11 @@ PicGen 按模型名判断协议和能力。请确认模型名和供应商文档�
 
 **我的图片和 Key 会被上传吗？**
 不会。PicGen 只请求你自己配置的接口地址；相似图分析用的是内置在软件里的本地模型。
+
+## 2.3.22 更新内容
+
+- **全局提示词恢复**：2.3.20 起「优化」旁的全局提示词开关丢失，现已恢复。开启后每次提交任务都会把全局提示词附加到末尾（不改动序列里的提示词）。
+- **支持 GPT Image 2.6（Grsai）**：`gpt-image-2.6` 走 Grsai 的 `/v1/api/generate` 接口，按像素尺寸发送画幅；可选质量 auto～max，不提供透明背景（Grsai 文档未列出 2.6 支持）。
 
 ## 2.3.21 更新内容
 
