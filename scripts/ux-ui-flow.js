@@ -119,12 +119,15 @@ module.exports = function uxFlow({ client, check, clickControl, clickSelector, w
             await waitFor(() => client.evaluate('!state.sendingReference && state.activeView === "generation"'), 'reference insertion');
             return key;
         }
-        // 复制图片: first in the native menu, and the picture lands on the clipboard.
+        // 复制图片 is in the native menu, and the picture lands on the clipboard. Smoke launches are
+        // PICGEN_SMOKE_CLIPBOARD=dry, so the copy only reaches the dry log, never the real clipboard.
         await rightClick(0, 'copy');
-        const copied = await waitFor(() => client.evaluate('window.picgenDesktop.smokeClipboardImage()'), 'Image copied to the clipboard');
+        const copied = await waitFor(() => client.evaluate(`window.picgenDesktop.smokeClipboardLog?.()
+            .then(log => log.filter(entry => entry.kind === 'image').at(-1) || null, () => null)
+            ?? window.picgenDesktop.smokeClipboardImage()`), 'Image copied to the clipboard');
         check(copied.width > 0 && copied.height > 0, `Clipboard image: ${JSON.stringify(copied)}`);
         const nativeMenu = await client.evaluate('window.picgenDesktop.smokeImageMenu()');
-        check(nativeMenu.last?.[0]?.id === 'copy' && nativeMenu.last.some(item => item.id === 'find-similar'), `Native image menu: ${JSON.stringify(nativeMenu.last)}`);
+        check(nativeMenu.last?.some(item => item.id === 'copy') && nativeMenu.last.some(item => item.id === 'find-similar'), `Native image menu: ${JSON.stringify(nativeMenu.last)}`);
         check(await client.evaluate('el.imageContextMenu.hidden'), 'The in-page fallback menu opened next to the native one');
         const usageOf = key => client.evaluate(`window.picgenDesktop.listHistoryImages().then(items => {
             const image = items.find(item => historyImageKey(item) === ${JSON.stringify(key)});
