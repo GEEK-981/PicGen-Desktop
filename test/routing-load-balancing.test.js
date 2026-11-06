@@ -159,6 +159,86 @@ test('fixed strategy routes only through the selected provider', () => {
     manager.close();
 });
 
+test('a task carrying its own route ignores the global fixed group', async () => {
+    const manager = new ProviderManager({ strategy: 'fixed', selectedProviderId: 'b', maxAttempts: 3 });
+    manager.syncProviders([
+        { id: 'a', price: 0.3 }, { id: 'b', price: 0.01 }, { id: 'c', price: 0.05 }, { id: 'd', price: null }
+    ].map(({ id, price }) => ({
+        id,
+        name: id.toUpperCase(),
+        baseUrl: `https://${id}.invalid`,
+        apiKey: id,
+        models: ['shared-image'],
+        modelPricing: price == null ? {} : { 'shared-image': price },
+        modelRouting: { 'shared-image': { protocol: 'openai-images' } }
+    })));
+    const task = { providerId: 'a', model: 'shared-image', operation: 'generate' };
+
+    // UI task: still pinned to b.
+    const ui = manager.reserve(task);
+    assert.equal(ui.providerId, 'b');
+    manager.releaseReservation(ui);
+
+    // Agent task limited to a, c and d: cheapest of those, then the next cheapest on failover.
+    const agentTask = { ...task, routing: { strategy: 'price', groupIds: ['a', 'c', 'd'] } };
+    const first = manager.reserve(agentTask);
+    assert.equal(first.providerId, 'c');
+    assert.equal(first.bypassBreaker, false);
+    manager.releaseReservation(first);
+    const failover = manager.reserve(agentTask, ['c']);
+    assert.equal(failover.providerId, 'a', 'unpriced d comes after priced a');
+    manager.releaseReservation(failover);
+    assert.equal(manager.hasCompatibleProvider(agentTask, ['a', 'c', 'd']), false, 'never leaves its own groups');
+
+    // No group list: every group may serve it, b (cheapest) included.
+    const open = manager.reserve({ ...task, routing: { strategy: 'price' } });
+    assert.equal(open.providerId, 'b');
+    manager.releaseReservation(open);
+
+    // One group pins it, like fixed routing (breaker bypassed).
+    const pinned = manager.reserve({ ...task, routing: { strategy: 'price', groupIds: ['d'] } });
+    assert.equal(pinned.providerId, 'd');
+    assert.equal(pinned.bypassBreaker, true);
+    manager.releaseReservation(pinned);
+    manager.close();
+});
+
+test('the server keeps an agent task on its own route under fixed routing', async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'picgen-agent-route-'));
+    const runtime = await startServer({
+        port: 0,
+        host: '127.0.0.1',
+        providerStoreFile: path.join(directory, 'providers.json'),
+        chatProviderStoreFile: path.join(directory, 'chat-providers.json'),
+        failoverConfigFile: path.join(directory, 'failover-config.json'),
+        proxyConfigFile: path.join(directory, 'proxy-config.json')
+    });
+    t.after(() => {
+        runtime.close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    });
+    await runtime.providerStore.replace([
+        { id: 'a', name: 'A', baseUrl: 'https://a.invalid', apiKey: 'a', models: ['a-model'], modelRouting: { 'a-model': { protocol: 'openai-images' } } },
+        { id: 'b', name: 'B', baseUrl: 'https://b.invalid', apiKey: 'b', models: ['b-model'], modelRouting: { 'b-model': { protocol: 'openai-images' } } }
+    ]);
+    runtime.providerManager.syncProviders(await runtime.providerStore.list());
+    await fetch(`${runtime.url}/api/providers/failover`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategy: 'fixed', selectedProviderId: 'b' })
+    });
+    runtime.taskQueue._scheduleDrain = () => {};
+    const response = await fetch(`${runtime.url}/api/tasks/batch`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sequenceId: 'agent:test', providerId: 'a', model: 'a-model', prompt: 'test', count: 1, routing: { strategy: 'price', groupIds: ['a'] } })
+    });
+    assert.equal(response.status, 202);
+    const { taskIds } = await response.json();
+    const task = runtime.taskQueue.getTask(taskIds[0]);
+    assert.equal(task.providerId, 'a');
+    assert.equal(task.model, 'a-model');
+    assert.deepEqual(task.routing, { strategy: 'price', groupIds: ['a'] });
+});
+
 test('fixed strategy resolves queued tasks against the selected provider', async t => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'picgen-fixed-provider-'));
     const runtime = await startServer({

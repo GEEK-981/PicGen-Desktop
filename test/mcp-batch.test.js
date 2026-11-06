@@ -39,7 +39,7 @@ async function deps(app, overrides = {}) {
     const dir = await tempDir();
     const imagePath = path.join(dir, 'ref.png');
     await fs.writeFile(imagePath, PNG);
-    const providers = [
+    const providers = overrides.providers || [
         { id: 'g1', name: '香蕉站', enabled: true, baseUrl: 'https://a.test', apiKey: 'k1', models: ['gemini-3-pro-image-preview'] },
         { id: 'g2', name: 'GPT 站', enabled: true, baseUrl: 'https://b.test', apiKey: 'k2', models: ['gpt-image-1'] },
         { id: 'g3', name: '停用站', enabled: false, baseUrl: 'https://c.test', apiKey: 'k3', models: ['grok-imagine-image'] },
@@ -315,24 +315,64 @@ test('a bookkeeping failure after queuing still returns the task ids', async () 
     } finally { app.restore(); }
 });
 
-test('fixed routing keeps agents on the pinned group and reports what really runs', async () => {
+test('the UI fixed group does not bind agents: any enabled group can serve them', async () => {
     const app = fakeApp({ routing: { strategy: 'fixed', selectedProviderId: 'g2' } });
     try {
         const { value } = await deps(app);
         await withServer(value, async server => {
             const { id } = await session(server);
             const models = await call(server, id, 'picgen_list_models', {});
-            assert.deepEqual(models.data.map(model => model.providerId), ['g2']);
-            const refused = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '甲', model: 'gemini-3-pro-image-preview' }] });
-            assert.equal(refused.isError, true);
-            assert.match(refused.data, /GPT 站/);
-            const other = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '甲', groupId: 'g1' }] });
-            assert.match(other.data, /GPT 站/);
-            const fallback = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '甲' }] });
-            assert.equal(fallback.isError, false, fallback.data);
-            assert.equal(fallback.data.items[0].model, 'gpt-image-1', 'the active Gemini sequence does not apply to the pinned GPT group');
-            assert.equal(fallback.data.items[0].groupId, 'g2');
-            assert.equal(app.posts[0].ratio, 'auto', 'ratio checked against the model that really runs');
+            assert.deepEqual(models.data.map(model => model.providerId), ['g1', 'g2', 'g4'], 'every enabled group is listed');
+            const gemini = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '甲', model: 'gemini-3-pro-image-preview' }] });
+            assert.equal(gemini.isError, false, gemini.data);
+            assert.equal(gemini.data.items[0].groupId, 'g1');
+            assert.deepEqual(app.posts[0].routing, { strategy: 'price', groupIds: ['g1'] }, 'the task carries its own route');
+            const pinned = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '乙', groupId: 'g1' }] });
+            assert.equal(pinned.isError, false, pinned.data);
+            assert.equal(app.posts[1].model, 'gemini-3-pro-image-preview', 'the active sequence model on its own group');
+            assert.deepEqual(app.posts[1].routing.groupIds, ['g1']);
+        });
+    } finally { app.restore(); }
+});
+
+test('agents get the cheapest group by default, or the supplier / group they name', async () => {
+    const app = fakeApp();
+    const providers = [
+        { id: 'pricey', name: 'GPT 贵', supplierId: 's1', supplierName: '甲站', enabled: true, baseUrl: 'https://a.test', apiKey: 'k', models: ['gpt-image-2'], modelPricing: { 'gpt-image-2': 0.3 } },
+        { id: 'unpriced', name: 'GPT 未标价', supplierId: 's2', supplierName: '乙站', enabled: true, baseUrl: 'https://b.test', apiKey: 'k', models: ['gpt-image-2'] },
+        { id: 'cheap', name: 'GPT 便宜', supplierId: 's3', supplierName: 'ToAPIs', enabled: true, baseUrl: 'https://c.test', apiKey: 'k', models: ['GPT-Image-2'], modelPricing: { 'GPT-Image-2': 0.05 } },
+        { id: 'off', name: 'GPT 停用', supplierId: 's3', supplierName: 'ToAPIs', enabled: false, baseUrl: 'https://d.test', apiKey: 'k', models: ['gpt-image-2'], modelPricing: { 'gpt-image-2': 0.01 } }
+    ];
+    try {
+        const { value } = await deps(app, { providers });
+        await withServer(value, async server => {
+            const { id } = await session(server);
+            const models = await call(server, id, 'picgen_list_models', {});
+            assert.deepEqual(models.data.map(model => [model.providerId, model.supplierName, model.price]),
+                [['pricey', '甲站', 0.3], ['unpriced', '乙站', null], ['cheap', 'ToAPIs', 0.05]]);
+
+            const byPrice = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '甲', model: 'gpt-image-2' }] });
+            assert.equal(byPrice.data.items[0].groupId, 'cheap');
+            assert.equal(app.posts[0].model, 'GPT-Image-2', 'the group\'s own spelling of the model');
+            assert.deepEqual(app.posts[0].routing, { strategy: 'price', groupIds: ['cheap', 'pricey', 'unpriced'] }, 'failover follows the price order, unpriced last');
+
+            const bySupplier = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '乙', model: 'gpt-image-2', supplier: '甲站' }] });
+            assert.equal(bySupplier.data.items[0].groupId, 'pricey');
+            assert.deepEqual(app.posts[1].routing.groupIds, ['pricey']);
+            const supplierById = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '丙', model: 'gpt-image-2', supplier: 's2' }] });
+            assert.equal(supplierById.data.items[0].groupId, 'unpriced');
+
+            const ordered = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '丁', model: 'gpt-image-2', routing: 'order' }] });
+            assert.deepEqual(app.posts[3].routing, { strategy: 'order', groupIds: ['pricey', 'unpriced', 'cheap'] });
+            assert.equal(ordered.data.items[0].groupId, 'pricey');
+
+            const unknown = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '戊', model: 'gpt-image-2', supplier: '不存在' }] });
+            assert.match(unknown.data, /找不到供应商「不存在」/);
+            const wrongGroup = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '戊', groupId: 'cheap', supplier: '甲站' }] });
+            assert.match(wrongGroup.data, /不属于供应商「甲站」/);
+            const badRouting = await call(server, id, 'picgen_generate_batch', { items: [{ prompt: '戊', model: 'gpt-image-2', routing: 'fixed' }] });
+            assert.match(badRouting.data, /routing 只能是/);
+            assert.equal(app.posts.length, 4, 'rejected items are never queued');
         });
     } finally { app.restore(); }
 });

@@ -11,7 +11,7 @@ const os = require('os');
 const TaskQueue = require('./taskQueue');
 const ProviderManager = require('./providerManager');
 const { UnifiedProviderStore } = require('./providerStore');
-const { FailoverConfigStore, normalizeStrategy } = require('./failoverConfig');
+const { FailoverConfigStore, normalizeStrategy, normalizeTaskRouting } = require('./failoverConfig');
 const { ProxyConfigStore, environmentProxyFor } = require('./proxyConfig');
 const { McpConfigStore } = require('./mcpConfig');
 const {
@@ -140,7 +140,10 @@ function createServerApp(options = {}) {
     async function resolveTaskProvider(taskData) {
         const payload = { ...taskData };
         const failoverConfig = await failoverConfigStore.get();
-        const fixedProviderId = failoverConfig.strategy === 'fixed'
+        // A task with its own route (MCP agents) is not rewritten to the UI's fixed group.
+        const ownRouting = normalizeTaskRouting(payload.routing);
+        payload.routing = ownRouting;
+        const fixedProviderId = failoverConfig.strategy === 'fixed' && !ownRouting
             ? String(failoverConfig.selectedProviderId || '').trim()
             : '';
         const requestedProviderId = fixedProviderId || String(payload.providerId || '').trim();

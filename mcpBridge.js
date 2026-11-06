@@ -125,19 +125,21 @@ function publicGroup(group) {
     };
 }
 
+// Every enabled group, whatever the UI's routing: agents choose their own route.
 async function listModels(deps) {
     const providers = await deps.runtime.providerStore.list();
-    const fixedGroupId = await fixedRoutingGroup(deps);
     const models = [];
     for (const provider of providers) {
         if (provider.enabled === false) continue;
-        if (fixedGroupId && provider.id !== fixedGroupId) continue;
         for (const model of provider.models || []) {
             const profile = deps.imageProfiles.getImageApiProfile(model);
+            const price = groupPrice(provider, model);
             models.push({
                 model,
                 providerId: provider.id,
                 providerName: provider.name,
+                supplierName: provider.supplierName || '',
+                price: Number.isFinite(price) ? price : null,
                 ratios: (profile.dimensionOptions || []).map(option => option.value ?? option),
                 imageSizes: (profile.imageSizeOptions || []).map(option => option.value ?? option),
                 maxReferences: profile.maxReferences
@@ -352,8 +354,9 @@ async function settle(task, fallback = undefined) {
     catch (error) { console.warn('[MCP] bookkeeping after submit failed:', error.message); return fallback; }
 }
 
-// Fixed routing makes the server run every task on one group; agents must see
-// and validate against that group, not the one they asked for.
+// Fixed routing makes the server run every UI task on one group. picgen_generate
+// runs a UI sequence, so it validates against that group; picgen_generate_batch
+// sends its own route instead (pickAgentRoute) and is not bound by it.
 async function fixedRoutingGroup(deps) {
     const routing = await localJson(deps, 'GET', '/api/providers/failover');
     return routing?.strategy === 'fixed' ? String(routing.selectedProviderId || '').trim() : '';
@@ -393,7 +396,6 @@ async function submitBatch(args, deps, context) {
     if (items.length > MAX_BATCH_ITEMS) throw new Error(`一次最多 ${MAX_BATCH_ITEMS} 条，请分批提交`);
     const defaults = args.defaults && typeof args.defaults === 'object' ? args.defaults : {};
     const providers = await deps.runtime.providerStore.list();
-    const fixedGroupId = await fixedRoutingGroup(deps);
     let active = null;
     try { active = (await rendererSequences(deps)).find(sequence => sequence.current) || null; } catch { /* window closed: no defaults from the UI */ }
     const lane = agentSequence(context);
@@ -405,7 +407,7 @@ async function submitBatch(args, deps, context) {
         const item = { ...defaults, ...items[index] };
         if (defaults.advanced || items[index]?.advanced) item.advanced = { ...defaults.advanced, ...items[index]?.advanced };
         try {
-            bodies.push(await batchItemBody(item, { providers, active, lane, deps, fixedGroupId, images }));
+            bodies.push(await batchItemBody(item, { providers, active, lane, deps, images }));
         } catch (error) {
             throw new Error(`第 ${index + 1} 项：${error.message}`);
         }
@@ -443,13 +445,13 @@ async function submitBatch(args, deps, context) {
     };
 }
 
-async function batchItemBody(item, { providers, active, lane, deps, fixedGroupId, images }) {
+async function batchItemBody(item, { providers, active, lane, deps, images }) {
     const prompt = String(item.prompt ?? '').trim();
     if (!prompt) throw new Error('提示词为空');
     const count = Number(item.count ?? 1);
     if (!Number.isInteger(count) || count < 1 || count > 100) throw new Error('张数必须是 1 到 100 的整数');
 
-    const { group, model } = pickGroupAndModel(item, providers, active, fixedGroupId);
+    const { group, model, routing } = pickAgentRoute(item, providers, active);
     // The active sequence's ratio, size and settings only make sense for its own model.
     const inherit = active && active.model === model ? active : null;
     const profile = deps.imageProfiles.getImageApiProfile(model);
@@ -469,6 +471,8 @@ async function batchItemBody(item, { providers, active, lane, deps, fixedGroupId
         count,
         providerId: group.id,
         providerName: group.name,
+        // The agent's own route: the UI's routing (fixed group included) does not apply.
+        routing,
         model,
         operation: 'generate',
         prompt,
@@ -537,6 +541,73 @@ function pickGroupAndModel(item, providers, active, fixedGroupId = '') {
     if (!group) throw new Error('界面当前序列的配置组不存在，请指定 model');
     usableGroup(group);
     return { group, model: active.model };
+}
+
+const AGENT_STRATEGIES = new Set(['price', 'priority', 'balanced', 'speed', 'order']);
+
+function agentStrategy(value) {
+    const strategy = String(value || '').trim().toLowerCase();
+    if (!strategy) return 'price';
+    if (!AGENT_STRATEGIES.has(strategy)) throw new Error(`routing 只能是 ${[...AGENT_STRATEGIES].join(' / ')}`);
+    return strategy;
+}
+
+// Per-image price a group lists for a model; unpriced groups sort last.
+function groupPrice(group, model) {
+    const pricing = group.modelPricing || group.pricing || {};
+    const key = Object.keys(pricing).find(name => sameModel(name, model));
+    const value = Number(key === undefined ? NaN : pricing[key]);
+    return Number.isFinite(value) && value > 0 ? value : Number.POSITIVE_INFINITY;
+}
+
+function matchesSupplier(group, supplier) {
+    const wanted = supplier.toLowerCase();
+    return [group.supplierId, group.supplierName].some(value => String(value || '').trim().toLowerCase() === wanted);
+}
+
+// Agents are not bound to the UI's routing: any enabled group may serve them.
+// `groupId` pins one group, `supplier` (name or id) limits them to that
+// supplier's groups, and otherwise every group offering the model takes part.
+// The candidates go to the scheduler as the task's own route, ordered by
+// `routing` (default: cheapest listed price first) with failover among them.
+function pickAgentRoute(item, providers, active) {
+    const groupId = String(item.groupId || '').trim();
+    const supplier = String(item.supplier || '').trim();
+    const strategy = agentStrategy(item.routing);
+    if (groupId) {
+        const group = providers.find(provider => provider.id === groupId);
+        if (!group) throw new Error(`找不到配置组 ${groupId}，用 picgen_list_models 查看`);
+        if (supplier && !matchesSupplier(group, supplier)) throw new Error(`配置组「${group.name}」不属于供应商「${supplier}」`);
+        usableGroup(group);
+        const fallback = active?.providerId === group.id ? active.model : group.models?.[0];
+        const model = (group.models || []).find(name => sameModel(name, item.model || fallback));
+        if (!model) throw new Error(`配置组「${group.name}」没有模型 ${item.model || '（未指定）'}`);
+        return { group, model, routing: { strategy, groupIds: [group.id] } };
+    }
+    const wanted = String(item.model || active?.model || '').trim();
+    if (!wanted) throw new Error('没有指定 model，界面上也没有可沿用的当前序列');
+    let pool = providers.filter(provider => provider.enabled !== false);
+    if (supplier) {
+        if (!providers.some(provider => matchesSupplier(provider, supplier))) throw new Error(`找不到供应商「${supplier}」，用 picgen_list_suppliers 查看`);
+        pool = pool.filter(provider => matchesSupplier(provider, supplier));
+    }
+    const offering = pool.filter(provider => (provider.models || []).some(name => sameModel(name, wanted)));
+    if (!offering.length) {
+        throw new Error(supplier
+            ? `供应商「${supplier}」没有已启用的配置组提供模型 ${wanted}`
+            : `没有已启用的配置组提供模型 ${wanted}，用 picgen_list_models 查看可用模型`);
+    }
+    const usable = offering.filter(provider => provider.apiKey && (provider.baseUrl || provider.url));
+    if (!usable.length) usableGroup(offering[0]);
+    const ranked = strategy === 'price'
+        ? [...usable].sort((left, right) => groupPrice(left, wanted) - groupPrice(right, wanted))
+        : usable;
+    const group = ranked[0];
+    return {
+        group,
+        model: group.models.find(name => sameModel(name, wanted)),
+        routing: { strategy, groupIds: ranked.map(provider => provider.id) }
+    };
 }
 
 async function waitTasks(args, deps) {

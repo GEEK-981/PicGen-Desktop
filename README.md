@@ -379,6 +379,7 @@ PicGen 按模型名判断协议和能力。请确认模型名和供应商文档�
 
 - **支持 ToAPIs 中转站（GPT 与 Gemini）**：供应商地址填 `https://toapis.cn`（或 `toapis.com`）即可。PicGen 按 ToAPIs 的异步任务接口提交、轮询并下载结果，参考图会先自动上传。支持 gpt-image-2 / 2-vip / 2-official、2.5 Flare / Sunburst（普通与 official）、2.6 Flare / Sunburst official，以及 Gemini 3 Pro / 3.1 Flash（普通、VIP、official）、Nano Banana 2.1、2.5 Flash 图像模型。
 - **局部编辑**：ToAPIs 上 gpt-image-2-official 与 2.6 official 使用原生蒙版，其余模型自动改用红色涂抹定位图。
+- **MCP 不再受界面路由限制**：AI 客户端通过 `picgen_generate_batch` 出图时，可以使用任意已添加并启用的供应商，不再被界面上的「指定配置组」锁住。默认在所有提供该模型的配置组里按标价从低到高选（失败时按价格依次转移）；也可以用 `supplier` 指定供应商、用 `groupId` 指定配置组，或用 `routing` 改成优先级、负载均衡、速度、顺序。`picgen_list_models` 会列出全部配置组，并带上供应商名称和标价。界面自己的出图仍按界面的路由设置。
 - **打包自动换版本**（开发者）：`npm run build:win:portable` 会在替换 exe 前关闭运行中的 PicGen（有生成任务时先等任务完成），打包完成后自动启动新版本。
 
 ## 2.3.22 更新内容

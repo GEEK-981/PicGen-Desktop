@@ -14,6 +14,19 @@ function normalizeStrategy(value) {
     return STRATEGIES.includes(strategy) ? strategy : 'order';
 }
 
+// A task may carry its own route (MCP agents do), which then replaces the
+// global strategy for that task only: `groupIds` limits it to those groups
+// (one id pins it, like fixed routing), and `strategy` orders the candidates.
+// Returns null for tasks that follow the global settings.
+function normalizeTaskRouting(value) {
+    if (!value || typeof value !== 'object') return null;
+    const groupIds = [...new Set((Array.isArray(value.groupIds) ? value.groupIds : [])
+        .map(id => String(id || '').trim()).filter(Boolean))];
+    const requested = String(value.strategy || '').trim().toLowerCase();
+    const strategy = STRATEGIES.includes(requested) && requested !== 'fixed' ? requested : 'price';
+    return { strategy, groupIds };
+}
+
 const DEFAULT_CONFIG = {
     enabled: true,
     maxAttempts: 3,
@@ -116,6 +129,7 @@ class FailoverConfigStore {
 module.exports = {
     STRATEGIES,
     normalizeStrategy,
+    normalizeTaskRouting,
     FailoverConfigStore,
     DEFAULT_CONFIG,
     defaultFailoverConfigFile

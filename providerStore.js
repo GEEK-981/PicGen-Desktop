@@ -489,6 +489,7 @@ class UnifiedProviderStore {
             // 生成区那颗按钮写的是「供应商」，但这里每一条其实是一个配置组。把供应商名一并
             // 交出去，显示端才能拼出「供应商 · 组名」——只给组名的话，供应商改名后按钮上
             // 看不到任何变化（迁移期的组名正是供应商名的副本）。仅供显示，不参与回写。
+            supplierId: provider.id,
             supplierName: String(provider.name || '').trim(),
             baseUrl: provider.baseUrl,
             icon: provider.icon,

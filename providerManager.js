@@ -1,6 +1,6 @@
 const Bottleneck = require('bottleneck');
 const CircuitBreaker = require('opossum');
-const { normalizeStrategy } = require('./failoverConfig');
+const { normalizeStrategy, normalizeTaskRouting } = require('./failoverConfig');
 
 const {
     canonicalModelName,
@@ -181,25 +181,39 @@ class ProviderManager {
         return provider.models.find(model => canonicalModelName(model) === canonicalModelName(requestedModel)) || '';
     }
 
-    candidatesFor(task = {}, excludedIds = []) {
-        const excluded = new Set(excludedIds);
+    // Which groups a task may use and how to order them. A task that carries its
+    // own route (MCP agents) ignores the global strategy, fixed routing included;
+    // every other task follows the global settings.
+    _routeFor(task = {}) {
+        const own = normalizeTaskRouting(task.routing);
+        if (own) {
+            const allowed = own.groupIds.length ? new Set(own.groupIds) : null;
+            return { strategy: own.strategy, allowed, pinnedId: own.groupIds.length === 1 ? own.groupIds[0] : '' };
+        }
         const fixedMode = this.failoverOptions.strategy === 'fixed';
         const fixedProviderId = fixedMode ? String(this.failoverOptions.selectedProviderId || '') : '';
+        return { strategy: this.failoverOptions.strategy, allowed: fixedMode ? new Set([fixedProviderId]) : null, pinnedId: fixedProviderId };
+    }
+
+    candidatesFor(task = {}, excludedIds = []) {
+        const excluded = new Set(excludedIds);
+        const route = this._routeFor(task);
         const now = Date.now();
         const candidates = this.providers.flatMap(provider => {
-            if (fixedMode && provider.id !== fixedProviderId) return [];
+            if (route.allowed && !route.allowed.has(provider.id)) return [];
             if (!provider.enabled || !provider.url || !provider.apiKey || excluded.has(provider.id)) return [];
             const model = this._matchingModel(provider, task.model);
             if (!model || !supportsOperation(provider, model, task.operation || 'generate')) return [];
             const state = this._ensureRuntime(provider);
-            const bypassBreaker = fixedMode && provider.id === fixedProviderId;
+            // A group the user (or agent) pinned is used even while its breaker is open.
+            const bypassBreaker = !!route.pinnedId && provider.id === route.pinnedId;
             if (!bypassBreaker && state.breaker.opened && !state.breaker.halfOpen) return [];
             if (!bypassBreaker && state.cooldownUntil > now) return [];
             return [{ provider, state, model, protocol: inferProtocol(provider, model), bypassBreaker }];
         });
 
         if (candidates.length > 0) return candidates;
-        if (fixedMode && String(task.providerId || '') !== fixedProviderId) return [];
+        if (route.allowed && !route.allowed.has(String(task.providerId || ''))) return [];
         if (!this._canUseDirectTask(task, excluded)) return [];
 
         const direct = normalizeProvider({
@@ -220,7 +234,7 @@ class ProviderManager {
         if (!selected.enabled || !selected.url || !selected.apiKey) return [];
         if (!supportsOperation(selected, task.model, task.operation || 'generate')) return [];
         const state = this._ensureRuntime(selected);
-        const bypassBreaker = fixedMode && selected.id === fixedProviderId;
+        const bypassBreaker = !!route.pinnedId && selected.id === route.pinnedId;
         if (!bypassBreaker && (state.breaker.opened || state.cooldownUntil > now)) return [];
         return [{
             provider: selected,
@@ -234,17 +248,16 @@ class ProviderManager {
     hasCompatibleProvider(task = {}, excludedIds = []) {
         const excluded = new Set(excludedIds);
         if (excluded.size >= this.failoverOptions.maxAttempts) return false;
-        const fixedMode = this.failoverOptions.strategy === 'fixed';
-        const fixedProviderId = fixedMode ? String(this.failoverOptions.selectedProviderId || '') : '';
+        const route = this._routeFor(task);
         const managed = this.providers.some(provider => {
-            if (fixedMode && provider.id !== fixedProviderId) return false;
+            if (route.allowed && !route.allowed.has(provider.id)) return false;
             if (excluded.has(provider.id)) return false;
             if (!provider.enabled || !provider.url || !provider.apiKey) return false;
             const model = this._matchingModel(provider, task.model);
             return !!model && supportsOperation(provider, model, task.operation || 'generate');
         });
         if (managed) return true;
-        if (fixedMode && String(task.providerId || '') !== fixedProviderId) return false;
+        if (route.allowed && !route.allowed.has(String(task.providerId || ''))) return false;
         if (!this._canUseDirectTask(task, excluded)) return false;
         const existing = this.providers.find(provider => provider.id === (task.providerId || '__direct__'));
         if (existing && (!existing.enabled || !this._matchingModel(existing, task.model))) return false;
@@ -277,8 +290,7 @@ class ProviderManager {
     }
 
     // Compare only eligible groups with free capacity; use configured order for ties.
-    _compareByStrategy(left, right) {
-        const strategy = this.failoverOptions.strategy;
+    _compareByStrategy(left, right, strategy = this.failoverOptions.strategy) {
         if (strategy === 'price') {
             const leftPrice = this._priceOf(left);
             const rightPrice = this._priceOf(right);
@@ -313,7 +325,8 @@ class ProviderManager {
             return null;
         }
 
-        candidates.sort((left, right) => this._compareByStrategy(left, right));
+        const { strategy } = this._routeFor(task);
+        candidates.sort((left, right) => this._compareByStrategy(left, right, strategy));
 
         const selected = candidates[0];
         selected.state.reserved += 1;

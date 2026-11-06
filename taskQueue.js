@@ -1,4 +1,5 @@
 const { generateImage } = require('./apiService');
+const { normalizeTaskRouting } = require('./failoverConfig');
 
 class TaskQueue {
     constructor(options = {}) {
@@ -65,6 +66,8 @@ class TaskQueue {
             providerId: taskData.providerId || '',
             providerConfig: taskData.providerConfig || null,
             modelPricing: taskData.modelPricing || 0,
+            // Agent tasks carry their own route (price / chosen supplier); null = global settings.
+            routing: normalizeTaskRouting(taskData.routing),
             result: null,
             error: null,
             progress: null,
@@ -415,6 +418,7 @@ class TaskQueue {
             providerName: task.providerName,
             providerId: task.providerId,
             modelPricing: task.modelPricing,
+            routing: task.routing ? { strategy: task.routing.strategy, groupIds: [...task.routing.groupIds] } : null,
             error: task.error,
             progress: task.progress,
             attempts: task.attempts.map(attempt => ({ ...attempt })),

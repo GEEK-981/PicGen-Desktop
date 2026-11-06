@@ -113,6 +113,7 @@ node scripts/native-interaction-smoke.js                   # Verify dock/preview
   - `price`: Prefer cheapest configured per-image price
   - `speed`: Prefer lowest observed EWMA latency
   - `fixed`: Pin to single provider, queue at capacity without switching
+- **Per-task routing** (2.3.23): a task may carry `routing: {strategy, groupIds}` (`failoverConfig.normalizeTaskRouting`; `fixed` is not allowed, default `price`). It replaces the global strategy for that task in `server.resolveTaskProvider` and `providerManager._routeFor` — `groupIds` limits the candidates (one id pins it and bypasses the breaker). MCP `picgen_generate_batch` always sends one (`mcpBridge.pickAgentRoute`: `groupId` / `supplier` / cheapest-first), so agents are never bound by the UI's fixed group; `picgen_generate` (run a UI sequence) still follows the UI routing.
 
 **Protocol Router** (`protocolRouter.js`):
 - **Critical routing logic**: Protocol is inferred from model name, NOT from provider domain
