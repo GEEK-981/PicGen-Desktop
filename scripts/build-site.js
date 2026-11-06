@@ -15,6 +15,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { pathToFileURL } = require('node:url');
 const sharp = require('sharp');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -50,6 +51,24 @@ function baiduParts(config) {
     };
 }
 
+// Relay cards come from the same templates the app's "新增供应商" form offers,
+// so the page always recommends exactly what PicGen fills in.
+const RELAY_ICONS = { zap: 'i-zap', atom: 'i-atom' };
+async function relayCards() {
+    const { SUPPLIER_TEMPLATES } = await import(pathToFileURL(path.join(ROOT, 'frontend', 'supplierTemplates.mjs')).href);
+    return SUPPLIER_TEMPLATES.map(template => {
+        const models = template.group.models;
+        const shown = models.slice(0, 4).map(model => `<span>${escapeHtml(model)}</span>`).join('');
+        const more = models.length > 4 ? `<span>+${models.length - 4}</span>` : '';
+        return `<div class="relay">`
+            + `<div class="relay-head"><span class="ico"><svg class="i"><use href="#${RELAY_ICONS[template.icon] || 'i-server'}"/></svg></span>`
+            + `<div><b>${escapeHtml(template.name)}</b><span>${escapeHtml(new URL(template.baseUrl).host)} · ${models.length} 个生图模型</span></div></div>`
+            + `<div class="relay-models">${shown}${more}</div>`
+            + `<a class="btn btn-dark" href="${escapeHtml(template.signupUrl)}" target="_blank" rel="sponsored noopener"><svg class="i"><use href="#i-key"/></svg>注册获取 Key</a>`
+            + '</div>';
+    }).join('\n        ');
+}
+
 // LobeHub model icons (MIT), inlined so the page makes no extra requests.
 function modelIcon(name) {
     const svg = fs.readFileSync(path.join(ROOT, 'assets', 'model-icons', `${name}.svg`), 'utf8');
@@ -64,6 +83,7 @@ async function buildImages(out) {
     for (const name of SHOTS) {
         await sharp(path.join(ROOT, 'docs', 'images', `${name}.png`)).resize({ width: 640 }).webp({ quality: 80 }).toFile(path.join(img, `${name}.webp`));
     }
+    fs.copyFileSync(path.join(SITE, 'assets', 'wechat-qr.png'), path.join(img, 'wechat-qr.png'));
     const icon = path.join(ROOT, 'assets', 'picgen-icon.png');
     await sharp(icon).resize(64, 64).png().toFile(path.join(img, 'icon-64.png'));
     await sharp(icon).resize(180, 180).png().toFile(path.join(img, 'icon-180.png'));
@@ -109,6 +129,7 @@ async function buildSite({ copyExe = true } = {}) {
     const baidu = baiduParts(config);
     const values = {
         MAIN_SITE_URL: escapeHtml(mainSiteUrl),
+        RELAY_CARDS: await relayCards(),
         BAIDU_BUTTON: baidu.button,
         BAIDU_CODE: baidu.code,
         ICON_OPENAI: modelIcon('openai'),

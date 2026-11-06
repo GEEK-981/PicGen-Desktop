@@ -77,7 +77,7 @@ section { padding: clamp(44px, 6vw, 72px) 0; }
 .brand span { color: var(--muted); font-weight: 600; letter-spacing: .02em; }
 .topbar nav { display: flex; align-items: center; gap: 22px; margin-left: auto; color: var(--muted); font-size: 14px; }
 .topbar nav a:hover { color: var(--ink); }
-.topbar .main-link { display: inline-flex; align-items: center; gap: 4px; }
+.topbar .main-link { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .topbar .btn { height: 38px; padding: 0 18px; font-size: 14px; }
 
 /* ---------- hero ---------- */
@@ -176,6 +176,29 @@ section { padding: clamp(44px, 6vw, 72px) 0; }
 .g-card span { display: block; font-size: 12px; color: var(--muted); }
 .g-card .go { margin-left: auto; color: var(--subtle); }
 
+/* ---------- relay recommendations ---------- */
+.relays { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.relay { display: flex; flex-direction: column; gap: 14px; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--line-strong); background: #fff; }
+.relay-head { display: flex; align-items: center; gap: 12px; }
+.relay-head .ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.relay-head .ico svg.i { width: 24px; height: 24px; }
+.relay-head b { display: block; font-size: 18px; }
+.relay-head span { display: block; font-size: 12px; color: var(--muted); }
+.relay-models { display: flex; flex-wrap: wrap; gap: 6px; }
+.relay-models span { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 6px; background: var(--bg-muted); color: var(--ink-2); }
+.relay .btn { align-self: flex-start; height: 40px; font-size: 14px; }
+
+/* ---------- 找我做图 side tab ---------- */
+.contact { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 60; display: flex; align-items: center; }
+.contact-tab { order: 2; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 9px; border: 0; border-radius: 14px 0 0 14px; background: var(--ink); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-btn); }
+.contact-tab span { writing-mode: vertical-rl; letter-spacing: .2em; }
+.contact-card { order: 1; width: 196px; margin-right: 10px; padding: 14px; border-radius: var(--radius-lg); background: #fff; box-shadow: var(--shadow), 0 0 0 1px var(--line); text-align: center; opacity: 0; visibility: hidden; transform: translateX(12px); transition: opacity .18s, transform .18s, visibility .18s; }
+.contact-card img { width: 100%; height: auto; border-radius: 10px; }
+.contact-card b { display: block; margin-top: 8px; font-size: 14px; }
+.contact-card span { display: block; font-size: 12px; color: var(--muted); }
+.contact-card a { display: inline-flex; align-items: center; gap: 3px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--accent); }
+.contact:hover .contact-card, .contact:focus-within .contact-card, .contact.open .contact-card { opacity: 1; visibility: visible; transform: none; }
+
 footer { border-top: 1px solid var(--line); padding: 26px 0 36px; color: var(--subtle); font-size: 12px; }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center; }
 footer a:hover { color: var(--ink); }
@@ -191,11 +214,20 @@ footer .right { margin-left: auto; }
   .fan { height: 420px; max-width: 520px; width: 100%; justify-self: center; }
   .flow, .tiles, .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .models { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .tips, .guide { grid-template-columns: minmax(0, 1fr); }
+  .tips, .guide, .relays { grid-template-columns: minmax(0, 1fr); }
+  /* phones: a round button in the corner instead of the edge tab */
+  .contact { top: auto; bottom: 18px; right: 16px; transform: none; flex-direction: column; align-items: flex-end; }
+  .contact-tab { order: 2; flex-direction: row; padding: 0 16px; height: 46px; border-radius: 999px; }
+  .contact-tab span { writing-mode: horizontal-tb; letter-spacing: 0; }
+  .contact-card { order: 1; margin: 0 0 10px; transform: translateY(8px); }
+  .contact:hover .contact-card { opacity: 0; visibility: hidden; }
+  .contact.open .contact-card { opacity: 1; visibility: visible; transform: none; }
 }
 @media (max-width: 560px) {
-  .topbar .brand span { display: none; }
-  .topbar nav { gap: 14px; }
+  .topbar .brand span, .topbar .hide-xs { display: none; }
+  .topbar nav { gap: 12px; font-size: 13px; }
+  .topbar .main-link svg { display: none; }
+  .topbar .brand { letter-spacing: .04em; }
   .flow li { flex-direction: column; align-items: flex-start; gap: 8px; }
   .ws { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ws .shot:nth-child(2) { transform: none; }
@@ -241,6 +273,7 @@ footer .right { margin-left: auto; }
   <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
   <symbol id="i-windows" viewBox="0 0 24 24"><path d="M3 5.5 10 4.5v7H3z"/><path d="M13 4l8-1v8.5h-8z"/><path d="M3 13h7v7l-7-1z"/><path d="M13 13h8v8l-8-1.2z"/></symbol>
   <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+  <symbol id="i-atom" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)"/></symbol>
   <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/></symbol>
 </svg>
 
@@ -248,9 +281,8 @@ footer .right { margin-left: auto; }
   <div class="wrap">
     <a class="brand" href="#top"><img src="img/icon-64.png" alt="" width="26" height="26">PICGEN <span>· 桌面 AI 生图</span></a>
     <nav>
-      <a class="hide-sm" href="#features">功能</a>
-      <a class="hide-sm" href="#screens">界面</a>
-      <a class="main-link" href="{{MAIN_SITE_URL}}" target="_blank" rel="noopener">AZGLB 主站<svg class="i" style="width:14px;height:14px"><use href="#i-arrow"/></svg></a>
+      <a class="main-link" href="{{MAIN_SITE_URL}}/" target="_blank" rel="noopener"><span class="hide-xs">亚马逊</span>AR查看器<svg class="i" style="width:14px;height:14px"><use href="#i-arrow"/></svg></a>
+      <a class="main-link" href="{{MAIN_SITE_URL}}/?page=cases" target="_blank" rel="noopener">Listing案例站<svg class="i" style="width:14px;height:14px"><use href="#i-arrow"/></svg></a>
       <a class="btn btn-dark" href="#download">下载</a>
     </nav>
   </div>
@@ -307,6 +339,15 @@ footer .right { margin-left: auto; }
         <div class="model"><span class="logo">{{ICON_GROK}}</span>Grok Imagine<small>xAI</small></div>
         <div class="model"><span class="logo">{{ICON_DOUBAO}}</span>Seedream<small>豆包</small></div>
         <div class="model"><span class="logo"><svg class="i" style="width:34px;height:34px;color:var(--accent)"><use href="#i-plug"/></svg></span>中转站<small>兼容以上接口</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="relays" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head"><div><span class="eyebrow">Relays</span><h2>中转站推荐</h2></div><span class="chip"><svg class="i"><use href="#i-key"/></svg>已内置模板，填 Key 即用</span></div>
+      <div class="relays">
+        {{RELAY_CARDS}}
       </div>
     </div>
   </section>
@@ -405,6 +446,16 @@ footer .right { margin-left: auto; }
   </div>
 </footer>
 
+<aside class="contact" aria-label="找我做图">
+  <button class="contact-tab" type="button" aria-expanded="false" aria-controls="contactCard"><svg class="i"><use href="#i-message"/></svg><span>找我做图</span></button>
+  <div class="contact-card" id="contactCard">
+    <img src="img/wechat-qr.png" width="480" height="484" alt="微信二维码" loading="lazy">
+    <b>微信扫码 · 找我做图</b>
+    <span>主图 · A+ · 3D · 视频</span>
+    <a href="{{MAIN_SITE_URL}}/?page=cases" target="_blank" rel="noopener">看案例<svg class="i" style="width:14px;height:14px"><use href="#i-arrow"/></svg></a>
+  </div>
+</aside>
+
 <div class="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -439,6 +490,13 @@ footer .right { margin-left: auto; }
       if (code) copyText(code).then(function () { say('提取码 ' + code + ' 已复制'); }, function () {});
     });
   });
+  // 找我做图: hover shows the QR on desktop; a tap toggles it (phones), Esc or an outside tap closes it.
+  var contact = document.querySelector('.contact');
+  var contactTab = contact.querySelector('.contact-tab');
+  function setContact(open) { contact.classList.toggle('open', open); contactTab.setAttribute('aria-expanded', String(open)); }
+  contactTab.addEventListener('click', function () { setContact(!contact.classList.contains('open')); });
+  document.addEventListener('click', function (event) { if (!contact.contains(event.target)) setContact(false); });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape') setContact(false); });
   // PicGen is Windows-only: tell phone and Mac visitors before a 100+ MB download.
   if (!/Windows/i.test(navigator.userAgent || '')) {
     document.querySelectorAll('[data-track="direct"]').forEach(function (link) {

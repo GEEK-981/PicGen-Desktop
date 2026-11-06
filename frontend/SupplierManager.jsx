@@ -25,6 +25,7 @@ import {
   validateGroupCapacity,
   validateSupplierIdentity,
 } from './supplierDraft.mjs';
+import { SUPPLIER_TEMPLATES, findSupplierTemplate } from './supplierTemplates.mjs';
 
 const toast = (message, kind) => (window.showToast || window.PicGenAppica?.showToast)?.(message, kind);
 
@@ -277,7 +278,28 @@ function IdentityForm({ mode, supplier, protocols, defaultPrompt, actions, onClo
   const [iconImage, setIconImage] = useState(supplier?.iconImage || '');
   // Called unconditionally to satisfy the rules of hooks; only used when isNew.
   const group = useGroupDraft(null, 'image', defaultPrompt);
+  const [templateId, setTemplateId] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // A template fills everything but the API key, then puts the cursor there.
+  function applyTemplate(id) {
+    const template = findSupplierTemplate(id);
+    setTemplateId(template ? id : '');
+    if (!template) return;
+    setName(template.name);
+    setWebsite(template.website);
+    setBaseUrl(template.baseUrl);
+    setIcon(template.icon);
+    setIconImage('');
+    const rows = rowsFromGroup(template.group);
+    group.setRows(rows);
+    group.setActiveKey(rows[0]?.key || '');
+    group.setGroupName(template.group.name);
+    group.setGroupRole('image');
+    group.setMaxConcurrent(String(template.group.maxConcurrent));
+    requestAnimationFrame(() => document.getElementById('unifiedGroupApiKeyInput')?.focus());
+  }
+  const activeTemplate = findSupplierTemplate(templateId);
   const busyRef = useRef(false);
   // 折叠状态由父级 SupplierManager 持有并通过 props 传入（默认展开），因此切换供应商
   // 导致本卡片按 key 重挂载时不会重置，保持之前的开/合。不并入 group 的单开模型。
@@ -311,6 +333,28 @@ function IdentityForm({ mode, supplier, protocols, defaultPrompt, actions, onClo
 
   const formBody = (
     <>
+      {isNew && (
+        <div className="supplier-template-row" role="group" aria-label="从模板开始">
+          <span className="supplier-template-label">从模板开始</span>
+          {SUPPLIER_TEMPLATES.map(template => (
+            <button key={template.id} type="button" id={`supplierTemplate-${template.id}`}
+              className="supplier-template-chip" aria-pressed={templateId === template.id}
+              onClick={() => applyTemplate(template.id)}>
+              <LucideName name={template.icon} />{template.label}
+              {template.badge && <em>{template.badge}</em>}
+            </button>
+          ))}
+          <button type="button" className="supplier-template-chip" aria-pressed={!templateId} onClick={() => setTemplateId('')}>自定义</button>
+        </div>
+      )}
+      {isNew && activeTemplate && (
+        <div className="supplier-template-hint">
+          <span>已填好接口地址和 {activeTemplate.group.models.length} 个生图模型，只需填写 API Key。</span>
+          <button type="button" className="supplier-template-signup" onClick={() => window.picgenDesktop?.openExternal?.(activeTemplate.signupUrl)}>
+            还没有 Key？去注册<ExternalLink size={12} />
+          </button>
+        </div>
+      )}
       <div className="unified-inline-grid">
         <label>
           <span>供应商名称</span>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, dialog, shell, safeStorage, session, clipboard, utilityProcess, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, dialog, shell, safeStorage, session, clipboard, utilityProcess, powerMonitor, crashReporter } = require('electron');
 const fs = require('fs/promises');
 const fsConstants = require('fs').constants;
 const path = require('path');
@@ -131,6 +131,15 @@ const QUIT_ARG = '--picgen-quit';
 
 if (app.isPackaged && process.env.PORTABLE_EXECUTABLE_DIR) {
     app.setPath('userData', path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'PicGenData'));
+}
+
+// Keep minidumps of crashed processes in <userData>/Crashpad so an intermittent
+// renderer crash can be diagnosed afterwards. Local only: nothing is uploaded.
+try {
+    app.setPath('crashDumps', path.join(app.getPath('userData'), 'Crashpad'));
+    crashReporter.start({ uploadToServer: false, compress: true });
+} catch (error) {
+    console.warn('[Crash] local crash dumps unavailable:', error.message);
 }
 
 app.setName('PicGen');
@@ -2251,6 +2260,14 @@ function createImagePreviewWindow() {
         imagePreviewLastBounds = null;
         imagePreviewLoadPromise = null;
     });
+    // A crashed preview renderer would otherwise be reused forever; drop the window
+    // so the next preview builds a fresh one.
+    const previewWindow = imagePreviewWindow;
+    previewWindow.webContents.on('render-process-gone', (_event, details) => {
+        if (isQuitting || details.reason === 'clean-exit' || previewWindow.isDestroyed()) return;
+        console.warn('[ImagePreview] renderer gone, recreating on next preview:', details.reason);
+        previewWindow.destroy();
+    });
     return imagePreviewWindow;
 }
 
@@ -3048,13 +3065,14 @@ async function createWindow() {
     mainWindow.once('ready-to-show', () => bringMainWindowToFront({ focus: false }));
     mainWindow.webContents.on('render-process-gone', (_event, details) => {
         if (isQuitting || details.reason === 'clean-exit') return;
+        const recovering = recoverMainRenderer();
         errorLogStore.record({
             source: 'renderer',
             title: '渲染进程异常退出',
-            message: `渲染进程已退出：${details.reason || 'unknown'}`,
+            message: `渲染进程已退出：${details.reason || 'unknown'}${recovering ? '，正在自动重新加载界面' : '，短时间内反复崩溃，已停止自动重新加载'}`,
             code: String(details.exitCode ?? ''),
             operation: 'render-process-gone',
-            details
+            details: { ...details, recovering }
         }).catch(() => {});
     });
     mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -3102,17 +3120,52 @@ async function createWindow() {
     });
 
     try {
-        await mainWindow.loadFile(path.join(__dirname, 'desktop.html'));
+        await mainWindow.loadFile(DESKTOP_PAGE);
     } catch (error) {
+        // Not fatal: the tray and the rest of startup must still run, and the page is
+        // loaded again (a renderer crash during this load has already scheduled that).
         await errorLogStore.record({
             source: 'system',
             title: '启动页面失败',
-            message: error.message,
+            message: `${error.message}，正在重新加载界面`,
             error,
             operation: 'load-desktop-page'
         }).catch(() => {});
-        throw error;
+        recoverMainRenderer();
     }
+}
+
+// A renderer crash (seen once right at startup: STATUS_BREAKPOINT while loading
+// desktop.html) used to leave a blank window for good, since nothing reloaded it.
+// Reload the page instead, at most RENDERER_RECOVERY_LIMIT times within
+// RENDERER_RECOVERY_WINDOW_MS so a crash loop does not spin forever.
+const DESKTOP_PAGE = path.join(__dirname, 'desktop.html');
+const RENDERER_RECOVERY_LIMIT = 3;
+const RENDERER_RECOVERY_WINDOW_MS = 2 * 60 * 1000;
+let rendererRecoveries = [];
+let rendererRecoveryTimer = null;
+
+function recoverMainRenderer({ force = false } = {}) {
+    if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return false;
+    if (rendererRecoveryTimer) return true;
+    const now = Date.now();
+    rendererRecoveries = force ? [] : rendererRecoveries.filter(at => now - at < RENDERER_RECOVERY_WINDOW_MS);
+    if (rendererRecoveries.length >= RENDERER_RECOVERY_LIMIT) return false;
+    rendererRecoveries.push(now);
+    rendererRecoveryTimer = setTimeout(() => {
+        rendererRecoveryTimer = null;
+        if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.loadFile(DESKTOP_PAGE).catch(error => {
+            errorLogStore?.record({
+                source: 'system',
+                title: '重新加载界面失败',
+                message: error.message,
+                error,
+                operation: 'reload-desktop-page'
+            }).catch(() => {});
+        });
+    }, 500 * rendererRecoveries.length);
+    return true;
 }
 
 // Every similarity request sees the current history: the index is loaded and handed to the service
@@ -3495,6 +3548,11 @@ app.on('second-instance', (_event, argv) => {
         return;
     }
 
+    // Launching PicGen again is how a user gets out of a blank window: reload a dead
+    // renderer (the crash-loop limit is reset, since this is an explicit request).
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.isCrashed()) {
+        recoverMainRenderer({ force: true });
+    }
     setExpanded(true, { focus: true });
 });
 

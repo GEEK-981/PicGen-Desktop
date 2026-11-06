@@ -872,6 +872,7 @@ function bindFormEvents() {
     el.networkSettingsTab.addEventListener('click', () => setSettingsMode('network'));
     el.outputSettingsTab.addEventListener('click', () => setSettingsMode('output'));
     el.mcpSettingsTab.addEventListener('click', () => setSettingsMode('mcp'));
+    bindSettingsTabsScroll();
     el.mcpEnabledToggle.addEventListener('change', saveMcpSettings);
     el.mcpCopyConfigBtn.addEventListener('click', copyMcpClientConfig);
     el.mcpRegenerateTokenBtn.addEventListener('click', regenerateMcpToken);
@@ -5110,6 +5111,36 @@ function hideSettingsPage() {
     state.tocCleanup = null;
 }
 
+// The settings tabs are one row that scrolls sideways when the window is narrow
+// (460px default): a vertical wheel scrolls it, and the edges fade while more
+// tabs are hidden on that side (.can-scroll-left / .can-scroll-right).
+function updateSettingsTabsOverflow() {
+    const strip = el.imageSettingsTab?.parentElement;
+    if (!strip) return;
+    const max = strip.scrollWidth - strip.clientWidth;
+    strip.classList.toggle('can-scroll-left', strip.scrollLeft > 1);
+    strip.classList.toggle('can-scroll-right', max - strip.scrollLeft > 1);
+}
+
+function bindSettingsTabsScroll() {
+    const strip = el.imageSettingsTab?.parentElement;
+    if (!strip) return;
+    strip.addEventListener('wheel', event => {
+        if (strip.scrollWidth <= strip.clientWidth || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+        event.preventDefault();
+        strip.scrollLeft += event.deltaY;
+    }, { passive: false });
+    strip.addEventListener('scroll', updateSettingsTabsOverflow, { passive: true });
+    if (typeof ResizeObserver === 'function') new ResizeObserver(updateSettingsTabsOverflow).observe(strip);
+    updateSettingsTabsOverflow();
+}
+
+function revealActiveSettingsTab() {
+    const tab = el.imageSettingsTab?.parentElement?.querySelector('.settings-mode-tab.active');
+    tab?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    requestAnimationFrame(updateSettingsTabsOverflow);
+}
+
 function setSettingsMode(mode) {
     // The chat tab is now the "提示词优化" (prompt optimization) settings page.
     const known = ['image', 'concurrency', 'optimize', 'network', 'output', 'mcp'];
@@ -5142,6 +5173,7 @@ function setSettingsMode(mode) {
     ]) {
         tab.setAttribute('aria-selected', String(active === tabMode));
     }
+    revealActiveSettingsTab();
     updateSettingsProviderMeta();
     if (active === 'concurrency') refreshConcurrencySettings();
     if (active === 'optimize') refreshPromptOptimizeSettings();
