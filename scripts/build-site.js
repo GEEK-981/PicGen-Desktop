@@ -31,17 +31,30 @@ function sha256(file) {
     });
 }
 
-function baiduBlock(config, fileName) {
+// The Baidu Netdisk button and its extraction-code row (both empty-safe).
+function baiduParts(config) {
     const url = String(config.baiduPanUrl || '').trim();
     const code = String(config.baiduPanCode || '').trim();
-    if (!url) return '<div class="pending">网盘链接整理中，请先使用直接下载。</div>';
+    if (!url) {
+        return {
+            button: '<span class="btn btn-light btn-lg" aria-disabled="true" style="opacity:.55;cursor:default"><svg class="i"><use href="#i-cloud"/></svg>百度网盘 · 整理中</span>',
+            code: ''
+        };
+    }
     if (!/^https:\/\/pan\.baidu\.com\//i.test(url)) throw new Error(`baiduPanUrl 不是百度网盘链接: ${url}`);
-    const codeRow = code
-        ? `<div class="code-row">提取码 <span class="code">${escapeHtml(code)}</span><button class="copy" type="button" data-copy="${escapeHtml(code)}">复制</button></div>`
-        : '';
-    return `<a class="btn-ghost" href="${escapeHtml(url)}" target="_blank" rel="noopener" data-pan="${escapeHtml(code)}">`
-        + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 13.5 3.5 3.5 0 0 0 6.5 19z"/></svg>'
-        + `<span><b>打开百度网盘</b><span>${escapeHtml(fileName)}${code ? '，打开时自动复制提取码' : ''}</span></span></a>${codeRow}`;
+    return {
+        button: `<a class="btn btn-light btn-lg" href="${escapeHtml(url)}" target="_blank" rel="noopener" data-pan="${escapeHtml(code)}"><svg class="i"><use href="#i-cloud"/></svg>百度网盘</a>`,
+        code: code
+            ? `<div class="pan">提取码 <span class="code">${escapeHtml(code)}</span><button class="copy" type="button" data-copy="${escapeHtml(code)}">复制</button></div>`
+            : ''
+    };
+}
+
+// LobeHub model icons (MIT), inlined so the page makes no extra requests.
+function modelIcon(name) {
+    const svg = fs.readFileSync(path.join(ROOT, 'assets', 'model-icons', `${name}.svg`), 'utf8');
+    return svg.replace(/<\?xml[^>]*>\s*/i, '').replace(/<title>[\s\S]*?<\/title>/i, '').trim()
+        .replace(/<svg\b/, '<svg aria-hidden="true"');
 }
 
 async function buildImages(out) {
@@ -57,12 +70,14 @@ async function buildImages(out) {
     // Share card for WeChat / QQ link previews.
     const shot = await sharp(path.join(ROOT, 'docs', 'images', 'generate.png')).resize({ height: 540 }).png().toBuffer();
     const iconLarge = await sharp(icon).resize(120, 120).png().toBuffer();
+    // Same palette as azglb.top: white canvas, ink headline, indigo eyebrow.
     const text = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
-        <text x="80" y="330" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="64" font-weight="800" fill="#eef1ff">贴在屏幕边上的</text>
-        <text x="80" y="410" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="64" font-weight="800" fill="#ff7a72">AI 生图小窗</text>
-        <text x="80" y="480" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="28" fill="#b4bde0">PicGen · Windows 免安装 · 国内直接下载</text>
+        <text x="80" y="290" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="22" font-weight="700" letter-spacing="4" fill="#3a45c4">AZGLB · PICGEN</text>
+        <text x="80" y="370" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="64" font-weight="800" fill="#16181d">贴在屏幕边上的</text>
+        <text x="80" y="450" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="64" font-weight="800" fill="#16181d">AI 生图小窗</text>
+        <text x="80" y="510" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="26" fill="#64748b">Windows 免安装 · 国内直接下载</text>
     </svg>`);
-    await sharp({ create: { width: 1200, height: 630, channels: 3, background: '#050d29' } })
+    await sharp({ create: { width: 1200, height: 630, channels: 3, background: '#f8fafc' } })
         .composite([{ input: iconLarge, left: 80, top: 110 }, { input: text, left: 0, top: 0 }, { input: shot, left: 820, top: 45 }])
         .png().toFile(path.join(img, 'og.png'));
 }
@@ -90,7 +105,16 @@ async function buildSite({ copyExe = true } = {}) {
     }
     const buildDate = new Date().toISOString().slice(0, 10);
     const siteUrl = String(config.siteUrl || '').trim().replace(/\/+$/, '');
+    const mainSiteUrl = String(config.mainSiteUrl || 'https://azglb.top').trim().replace(/\/+$/, '');
+    const baidu = baiduParts(config);
     const values = {
+        MAIN_SITE_URL: escapeHtml(mainSiteUrl),
+        BAIDU_BUTTON: baidu.button,
+        BAIDU_CODE: baidu.code,
+        ICON_OPENAI: modelIcon('openai'),
+        ICON_GEMINI: modelIcon('gemini-color'),
+        ICON_GROK: modelIcon('grok'),
+        ICON_DOUBAO: modelIcon('doubao-color'),
         VERSION: escapeHtml(version),
         FILE_NAME: escapeHtml(fileName),
         SIZE_MB: (size / 1024 / 1024).toFixed(1),
@@ -98,7 +122,6 @@ async function buildSite({ copyExe = true } = {}) {
         SHA256: hash,
         DIRECT_URL: escapeHtml(directUrl),
         BUILD_DATE: buildDate,
-        BAIDU_BLOCK: baiduBlock(config, fileName),
         CANONICAL: siteUrl ? `<link rel="canonical" href="${escapeHtml(siteUrl)}/">` : '',
         CONTACT: config.contact ? `<span>${escapeHtml(config.contact)}</span>` : ''
     };

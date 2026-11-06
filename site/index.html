@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PicGen · 贴在屏幕边上的 AI 生图小窗</title>
-<meta name="description" content="PicGen 是 Windows 桌面悬浮窗 AI 生图工具：接入 GPT Image、Gemini（Nano Banana）、Grok、Seedream 与各类中转站，多供应商自动切换，图片工作台，历史资产库。免安装便携版，国内直接下载。">
-<meta name="keywords" content="PicGen,AI生图,GPT Image,Nano Banana,Gemini,Seedream,中转站,桌面生图工具">
-<meta name="theme-color" content="#050d29">
+<title>PicGen · 贴在屏幕边上的 AI 生图小窗 | AZGLB</title>
+<meta name="description" content="PicGen：Windows 桌面悬浮窗 AI 生图工具。接入 GPT Image、Gemini（Nano Banana）、Grok、Seedream 与各类中转站，多供应商自动切换。免安装，国内直接下载。AZGLB 出品。">
+<meta name="keywords" content="PicGen,AI生图,GPT Image,Nano Banana,Gemini,Seedream,中转站,桌面生图工具,AZGLB">
+<meta name="theme-color" content="#ffffff">
 <meta name="renderer" content="webkit">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 {{CANONICAL}}
@@ -17,296 +17,242 @@
 <link rel="apple-touch-icon" href="img/icon-180.png">
 <link rel="preload" as="image" href="img/generate.webp" type="image/webp">
 <style>
+/* Design language shared with azglb.top: white canvas, ink #16181d, indigo
+   eyebrow #3a45c4, pill buttons, thin-bordered cards, system fonts. */
 :root {
-  --ink: #050d29;
-  --ink-2: #0a1538;
-  --ink-3: #121f4d;
-  --line: rgba(160, 180, 255, .14);
-  --line-strong: rgba(160, 180, 255, .28);
-  --text: #eef1ff;
-  --text-2: #b4bde0;
-  --text-3: #7d88b4;
-  --amber: #ffae54;
-  --rose: #ff5c8e;
-  --violet: #b32eef;
-  --cyan: #5bc4ff;
-  --warm: linear-gradient(115deg, #ffae54 0%, #ff7a72 45%, #ff5c8e 100%);
-  --radius: 18px;
-  --sans: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
-  --mono: "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
-  --gutter: clamp(16px, 4vw, 48px);
+  --bg: #ffffff;
+  --bg-soft: #f8fafc;
+  --bg-muted: #f1f5f9;
+  --ink: #16181d;
+  --ink-2: #1e293b;
+  --muted: #64748b;
+  --subtle: #94a3b8;
+  --line: rgba(15, 17, 17, .08);
+  --line-strong: #d3d8e1;
+  --accent: #3a45c4;
+  --accent-soft: rgba(58, 69, 196, .08);
+  --shadow: 0 10px 30px rgba(15, 23, 42, .08), 0 2px 8px rgba(15, 23, 42, .05);
+  --shadow-sm: 0 4px 14px rgba(15, 23, 42, .06);
+  --shadow-btn: 0 6px 18px rgba(18, 22, 33, .18);
+  --radius-xl: 20px;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --gutter: clamp(16px, 4vw, 40px);
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-body {
-  margin: 0;
-  background: var(--ink);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 16px;
-  line-height: 1.7;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
-/* Film grain over the whole page: one tiny inline SVG, no request. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 100;
-  opacity: .06;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 img { max-width: 100%; display: block; }
-a { color: inherit; }
-::selection { background: var(--rose); color: #fff; }
-.wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 var(--gutter); }
-.mono { font-family: var(--mono); letter-spacing: 0; }
-.eyebrow {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  color: var(--amber);
-}
-h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+a { color: inherit; text-decoration: none; }
+svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.wrap { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 var(--gutter); }
+.mono { font-family: var(--mono); }
+.eyebrow { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .16em; color: var(--accent); text-transform: uppercase; }
+h1, h2, h3 { margin: 0; font-weight: 800; }
+h1 { font-size: clamp(34px, 4.6vw, 54px); line-height: 1.08; letter-spacing: -.02em; }
+h2 { font-size: clamp(22px, 2.4vw, 28px); line-height: 1.3; letter-spacing: -.01em; }
+section { padding: clamp(44px, 6vw, 72px) 0; }
+.sec-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.sec-head h2 { margin-top: 6px; }
 
-/* ---------- Top bar ---------- */
-.top {
-  position: sticky; top: 0; z-index: 50;
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  background: rgba(5, 13, 41, .72);
-  border-bottom: 1px solid var(--line);
-}
-.top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 800; font-size: 18px; letter-spacing: -.01em; }
-.brand img { width: 30px; height: 30px; border-radius: 8px; }
-.brand small { font-family: var(--mono); font-weight: 400; font-size: 12px; color: var(--text-3); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
-.top nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
-.top nav a { text-decoration: none; color: var(--text-2); transition: color .2s; }
-.top nav a:hover { color: var(--text); }
-.top .mini-dl {
-  text-decoration: none; font-size: 14px; font-weight: 700;
-  padding: 7px 16px; border-radius: 99px; color: #1a0b16; background: var(--warm);
-}
+/* ---------- pills ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 24px; border-radius: 999px; font-size: 15px; font-weight: 600; border: 1px solid transparent; transition: transform .15s, box-shadow .15s, border-color .15s; white-space: nowrap; }
+.btn:hover { transform: translateY(-1px); }
+.btn-dark { background: var(--ink); color: #fff; box-shadow: var(--shadow-btn); }
+.btn-dark:hover { box-shadow: 0 10px 24px rgba(18, 22, 33, .24); }
+.btn-light { background: #fff; color: var(--ink); border-color: var(--line-strong); }
+.btn-light:hover { border-color: var(--ink); }
+.btn small { font-family: var(--mono); font-weight: 500; font-size: 12px; opacity: .65; }
+.btn-lg { height: 54px; padding: 0 28px; font-size: 16px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; background: #fff; border: 1px solid var(--line-strong); font-size: 13px; font-weight: 600; }
+.chip svg.i { width: 16px; height: 16px; color: var(--accent); }
 
-/* ---------- Hero ---------- */
-.hero { position: relative; overflow: hidden; padding: clamp(40px, 7vw, 96px) 0 clamp(48px, 7vw, 88px); }
-.hero::after {
-  /* the warm light leaking from the docked window (clipped by .hero, so no sideways scroll) */
-  content: ""; position: absolute; z-index: -1; pointer-events: none;
-  right: -10%; top: 4%; width: 60%; height: 80%;
-  background: radial-gradient(closest-side, rgba(255, 92, 142, .22), rgba(179, 46, 239, .1) 55%, transparent);
-  filter: blur(20px);
-}
-.hero .wrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
-.hero h1 { font-size: clamp(38px, 6.2vw, 76px); }
-.hero h1 .warm { background: var(--warm); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.hero .lede { font-size: clamp(16px, 1.6vw, 19px); color: var(--text-2); max-width: 34em; margin: 22px 0 32px; }
-.dl-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
-.btn-dl {
-  position: relative; display: inline-flex; align-items: center; gap: 14px;
-  text-decoration: none; color: #1a0b16; background: var(--warm);
-  padding: 15px 26px 15px 20px; border-radius: 16px;
-  box-shadow: 0 14px 40px -12px rgba(255, 92, 142, .7), inset 0 1px 0 rgba(255,255,255,.45);
-  transition: transform .2s, box-shadow .2s;
-}
-.btn-dl:hover { transform: translateY(-2px); box-shadow: 0 20px 48px -12px rgba(255, 92, 142, .85), inset 0 1px 0 rgba(255,255,255,.45); }
-.btn-dl svg { flex: none; }
-.btn-dl b { display: block; font-size: 18px; line-height: 1.2; }
-.btn-dl span { display: block; font-family: var(--mono); font-size: 12px; opacity: .78; }
-.btn-ghost {
-  display: inline-flex; align-items: center; gap: 12px; text-decoration: none;
-  padding: 15px 22px; border-radius: 16px; border: 1px solid var(--line-strong);
-  color: var(--text); background: rgba(255,255,255,.03); transition: border-color .2s, background .2s;
-}
-.btn-ghost:hover { border-color: var(--cyan); background: rgba(91,196,255,.06); }
-.btn-ghost b { display: block; font-size: 16px; line-height: 1.2; }
-.btn-ghost span { display: block; font-size: 12px; color: var(--text-3); }
-.facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 22px; font-size: 13px; color: var(--text-3); }
-.facts i { font-style: normal; color: var(--text-2); }
+/* ---------- top bar ---------- */
+.topbar { position: sticky; top: 0; z-index: 50; background: rgba(255, 255, 255, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.topbar .wrap { display: flex; align-items: center; gap: 20px; height: 63px; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.brand img { width: 26px; height: 26px; border-radius: 7px; }
+.brand span { color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.topbar nav { display: flex; align-items: center; gap: 22px; margin-left: auto; color: var(--muted); font-size: 14px; }
+.topbar nav a:hover { color: var(--ink); }
+.topbar .main-link { display: inline-flex; align-items: center; gap: 4px; }
+.topbar .btn { height: 38px; padding: 0 18px; font-size: 14px; }
 
-/* The desktop with PicGen docked at its right edge. */
-.desk {
-  position: relative; aspect-ratio: 4 / 4.4; border-radius: 22px; overflow: hidden;
-  border: 1px solid var(--line-strong);
-  background:
-    radial-gradient(120% 80% at 10% 100%, rgba(91,196,255,.18), transparent 60%),
-    radial-gradient(90% 70% at 100% 0%, rgba(179,46,239,.25), transparent 55%),
-    linear-gradient(160deg, #101b47, #070f30 60%, #040a22);
-  box-shadow: 0 40px 120px -40px rgba(0,0,0,.8);
-}
-.desk .bar {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 34px;
-  background: rgba(3, 6, 22, .7); border-top: 1px solid var(--line);
-  display: flex; align-items: center; gap: 8px; padding: 0 12px;
-}
-.desk .bar i { width: 16px; height: 16px; border-radius: 4px; background: rgba(255,255,255,.12); }
-.desk .bar i:first-child { background: linear-gradient(135deg, #5bc4ff, #297bfa); }
-.desk .clock { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
-.desk .icons { position: absolute; left: 18px; top: 18px; display: grid; gap: 18px; }
-.desk .icons span { width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,.07); border: 1px solid var(--line); }
-.desk .note {
-  position: absolute; left: 22px; bottom: 54px; max-width: 34%;
-  font-size: 13px; color: var(--text-2);
-}
-.desk .note .mono { color: var(--amber); font-size: 11px; display: block; letter-spacing: .12em; }
-.window {
-  position: absolute; top: 7%; right: 0; width: 58%;
-  border-radius: 14px 0 0 14px; overflow: hidden;
-  box-shadow: -20px 30px 70px -20px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.08);
-  transform: translateX(100%);
-  animation: dock-out 1.1s cubic-bezier(.2, .9, .2, 1) .5s forwards;
-}
-.window img { width: 100%; height: auto; }
-.tab {
-  /* the 12px tab PicGen leaves at the screen edge when it auto-hides */
-  position: absolute; right: 0; top: 30%; width: 10px; height: 92px; border-radius: 8px 0 0 8px;
-  background: var(--warm); box-shadow: 0 0 24px rgba(255, 92, 142, .8);
-  animation: tab-fade 1.1s ease .5s forwards;
-}
-@keyframes dock-out { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes tab-fade { 0% { opacity: 1; } 60% { opacity: 0; } 100% { opacity: 0; } }
+/* ---------- hero ---------- */
+.hero { position: relative; overflow: hidden; padding: clamp(36px, 6vw, 72px) 0 clamp(48px, 6vw, 80px); background: linear-gradient(180deg, #fff 0%, var(--bg-soft) 100%); }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: center; }
+.hero h1 { margin: 14px 0 20px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; color: var(--subtle); font-size: 12px; }
+.meta span { display: inline-flex; align-items: center; gap: 5px; }
+.meta svg.i { width: 14px; height: 14px; }
 
-/* staggered entrance for the hero copy */
-.rise { opacity: 0; transform: translateY(16px); animation: rise .8s cubic-bezier(.2,.8,.2,1) forwards; }
-.rise.d1 { animation-delay: .05s; } .rise.d2 { animation-delay: .15s; } .rise.d3 { animation-delay: .25s; } .rise.d4 { animation-delay: .35s; }
-@keyframes rise { to { opacity: 1; transform: none; } }
+/* fan of three app screenshots, the front one docked to the right edge */
+.fan { position: relative; height: clamp(380px, 46vw, 560px); }
+.fan .card { position: absolute; top: 50%; width: 50%; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: var(--shadow), 0 0 0 1px var(--line); }
+.fan .card img { width: 100%; height: auto; aspect-ratio: 920 / 1600; }
+.fan .c1 { left: 0; transform: translateY(-50%) rotate(-7deg) scale(.86); opacity: .9; }
+.fan .c2 { left: 18%; transform: translateY(-52%) rotate(-2deg) scale(.93); }
+.fan .c3 { right: 3%; transform: translateY(-50%) translateX(40px); opacity: 0; animation: slide-in .9s cubic-bezier(.2, .9, .2, 1) .35s forwards; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, .35), 0 0 0 1px var(--line); }
+.fan .tab { position: absolute; right: 0; top: 30%; width: 8px; height: 84px; border-radius: 8px 0 0 8px; background: var(--accent); box-shadow: 0 0 22px rgba(58, 69, 196, .55); }
+.fan .badge { position: absolute; left: 6%; bottom: 6%; display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: #fff; box-shadow: var(--shadow); font-size: 13px; font-weight: 700; opacity: 0; animation: rise .6s ease 1.1s forwards; }
+.fan .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: #15803d; box-shadow: 0 0 0 4px rgba(21, 128, 61, .14); }
+@keyframes slide-in { to { transform: translateY(-50%) translateX(0); opacity: 1; } }
+@keyframes rise { from { transform: translateY(8px); } to { transform: none; opacity: 1; } }
 
-/* ---------- Model strip ---------- */
-.models { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,.015); }
-.models .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; padding-top: 22px; padding-bottom: 22px; }
-.models .label { font-size: 13px; color: var(--text-3); }
-.models b { font-weight: 700; font-size: 15px; color: var(--text-2); }
-.models b::before { content: "▸ "; color: var(--rose); font-size: 11px; }
+/* ---------- flow steps (same shape as the main site's 01–04) ---------- */
+.flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
+.flow li { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: var(--radius-md); background: rgba(255, 255, 255, .86); border: 1px solid var(--line); }
+.flow .num { font-size: 12px; font-weight: 800; letter-spacing: .04em; color: var(--accent); }
+.flow .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.flow .ico svg.i { width: 20px; height: 20px; }
+.flow b { display: block; font-size: 15px; }
 
-/* ---------- Sections ---------- */
-section.block { padding: clamp(64px, 9vw, 120px) 0; }
-.head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px 64px; align-items: end; margin-bottom: clamp(32px, 5vw, 56px); }
-.head h2 { font-size: clamp(30px, 4.2vw, 52px); }
-.head p { margin: 0; color: var(--text-2); }
+/* ---------- models ---------- */
+.models { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.model { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 12px; border-radius: var(--radius-lg); border: 1px solid var(--line); background: #fff; font-size: 13px; font-weight: 700; text-align: center; }
+.model .logo { width: 44px; height: 44px; display: grid; place-items: center; }
+.model .logo svg { width: 40px; height: 40px; }
+.model small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; }
 
-/* Feature index: number column + text, screenshots on the right. */
-.features { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 64px; }
-.feat { display: grid; grid-template-columns: 56px 1fr; gap: 16px; padding: 26px 0; border-top: 1px solid var(--line); }
-.feat .n { font-family: var(--mono); font-size: 13px; color: var(--rose); padding-top: 4px; }
-.feat h3 { font-size: 21px; margin-bottom: 6px; }
-.feat p { margin: 0; color: var(--text-2); font-size: 15px; }
+/* ---------- feature tiles: icon + a few words ---------- */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { padding: 20px; border-radius: var(--radius-lg); background: var(--bg-soft); border: 1px solid var(--line); transition: background .2s, box-shadow .2s, transform .2s; }
+.tile:hover { background: #fff; box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+.tile .ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: #fff; border: 1px solid var(--line); color: var(--ink); margin-bottom: 14px; }
+.tile .ico svg.i { width: 22px; height: 22px; }
+.tile b { display: block; font-size: 15px; }
+.tile span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
 
-/* ---------- Screenshot reel ---------- */
-.reel {
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 260px); gap: 22px;
-  overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px var(--gutter) 28px;
-  scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent;
-  max-width: 1180px; margin: 0 auto;
-}
-.shot { scroll-snap-align: start; margin: 0; }
-.shot .frame {
-  border-radius: 14px; overflow: hidden; background: #fff;
-  box-shadow: 0 20px 50px -24px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.08);
-  transition: transform .3s;
-}
-.shot:hover .frame { transform: translateY(-6px) rotate(-.6deg); }
+/* ---------- screenshot gallery ---------- */
+.gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.shot { margin: 0; }
+.shot .frame { border-radius: var(--radius-lg); overflow: hidden; background: #fff; box-shadow: var(--shadow-sm), 0 0 0 1px var(--line); transition: transform .25s, box-shadow .25s; }
+.shot:hover .frame { transform: translateY(-4px); box-shadow: var(--shadow), 0 0 0 1px var(--line); }
 .shot img { width: 100%; height: auto; aspect-ratio: 920 / 1600; }
-.shot figcaption { margin-top: 12px; font-size: 14px; color: var(--text-2); }
-.shot figcaption b { color: var(--text); margin-right: 6px; }
+.shot figcaption { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; font-weight: 700; }
+.shot figcaption svg.i { width: 16px; height: 16px; color: var(--accent); }
 
-/* ---------- Workspace triptych ---------- */
-.tri { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.4vw, 28px); }
-.tri .shot:nth-child(2) { transform: translateY(36px); }
+.ws { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.ws .shot:nth-child(2) { transform: translateY(24px); }
+.soft { background: var(--bg-soft); }
 
-/* ---------- Download ---------- */
-.download { position: relative; }
-.download::before {
-  content: ""; position: absolute; inset: 0; z-index: -1;
-  background: radial-gradient(60% 60% at 50% 0%, rgba(255, 174, 84, .12), transparent 70%);
-}
-.cards { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; }
-.card {
-  border: 1px solid var(--line-strong); border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
-  padding: clamp(22px, 3vw, 34px);
-}
-.card h3 { font-size: 22px; display: flex; align-items: center; gap: 10px; }
-.card .tag { font-family: var(--mono); font-size: 11px; font-weight: 400; color: #1a0b16; background: var(--amber); border-radius: 6px; padding: 2px 7px; letter-spacing: .04em; }
-.card .tag.cool { background: var(--cyan); }
-.card p { color: var(--text-2); margin: 10px 0 22px; font-size: 15px; }
-.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px; font-size: 13px; margin: 22px 0 0; }
-.kv dt { color: var(--text-3); }
-.kv dd { margin: 0; font-family: var(--mono); color: var(--text-2); overflow-wrap: anywhere; }
-.code-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-size: 14px; color: var(--text-2); }
-.code {
-  font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: .18em; color: var(--text);
-  padding: 4px 12px; border-radius: 10px; border: 1px dashed var(--line-strong); background: rgba(0,0,0,.2);
-}
-.copy {
-  font: inherit; font-size: 13px; cursor: pointer; color: var(--text); background: rgba(255,255,255,.06);
-  border: 1px solid var(--line-strong); border-radius: 10px; padding: 6px 12px;
-}
-.copy:hover { border-color: var(--cyan); }
-.pending { color: var(--text-3); font-size: 14px; border: 1px dashed var(--line-strong); border-radius: 12px; padding: 14px 16px; }
+/* ---------- download block (dark, like the main site's contact block) ---------- */
+.dl { background: var(--ink); color: #fff; border-radius: var(--radius-xl); padding: clamp(24px, 4vw, 44px); display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(24px, 4vw, 48px); }
+.dl .eyebrow { color: #a5b0ff; }
+.dl h2 { margin: 6px 0 20px; font-size: clamp(26px, 3vw, 34px); }
+.dl .btn-dark { background: #fff; color: var(--ink); box-shadow: none; }
+.dl .btn-light { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .28); }
+.dl .btn-light:hover { border-color: #fff; }
+.opts { display: flex; flex-wrap: wrap; gap: 12px; }
+.pan { margin-top: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 13px; color: rgba(255, 255, 255, .7); }
+.pan .code { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: .2em; color: #fff; padding: 4px 12px; border-radius: 10px; border: 1px dashed rgba(255, 255, 255, .35); }
+.pan .copy { font: inherit; font-weight: 600; color: var(--ink); background: #fff; border: 0; border-radius: 999px; height: 30px; padding: 0 14px; cursor: pointer; }
+.pan.pending { color: rgba(255, 255, 255, .5); }
+.specs { margin: 22px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; font-size: 12px; color: rgba(255, 255, 255, .55); }
+.specs dd { margin: 0; font-family: var(--mono); color: rgba(255, 255, 255, .8); overflow-wrap: anywhere; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; align-content: start; }
+.steps li { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .08); }
+.steps .n { width: 26px; height: 26px; border-radius: 50%; background: #fff; color: var(--ink); font-size: 13px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.steps svg.i { color: #a5b0ff; }
+.steps b { font-size: 15px; }
+.steps span { display: block; font-size: 12px; color: rgba(255, 255, 255, .55); }
+.tips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.tip { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--line); background: #fff; }
+.tip .ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--bg-muted); flex: none; }
+.tip b { display: block; font-size: 14px; }
+.tip span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-.steps { list-style: none; padding: 0; margin: clamp(36px, 5vw, 56px) 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; counter-reset: s; }
-.steps li { counter-increment: s; border-top: 2px solid var(--ink-3); padding-top: 16px; color: var(--text-2); font-size: 15px; }
-.steps li::before { content: "0" counter(s); display: block; font-family: var(--mono); color: var(--amber); font-size: 13px; margin-bottom: 6px; }
-.steps b { color: var(--text); }
+/* ---------- AZGLB guide ---------- */
+.guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.g-card { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: var(--radius-lg); border: 1px solid var(--line-strong); background: #fff; transition: border-color .2s, box-shadow .2s, transform .2s; }
+.g-card:hover { border-color: var(--ink); box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+.g-card .ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--ink); color: #fff; flex: none; }
+.g-card .ico svg.i { width: 22px; height: 22px; }
+.g-card b { display: block; font-size: 15px; }
+.g-card span { display: block; font-size: 12px; color: var(--muted); }
+.g-card .go { margin-left: auto; color: var(--subtle); }
 
-/* ---------- FAQ ---------- */
-.faq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 48px; }
-.faq details { border-top: 1px solid var(--line); padding: 18px 0; }
-.faq summary { cursor: pointer; font-weight: 700; font-size: 17px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
-.faq summary::-webkit-details-marker { display: none; }
-.faq summary::after { content: "+"; font-family: var(--mono); color: var(--rose); transition: transform .2s; }
-.faq details[open] summary::after { transform: rotate(45deg); }
-.faq details p { margin: 10px 0 0; color: var(--text-2); font-size: 15px; }
-
-footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--text-3); font-size: 13px; }
-footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; }
+footer { border-top: 1px solid var(--line); padding: 26px 0 36px; color: var(--subtle); font-size: 12px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center; }
+footer a:hover { color: var(--ink); }
 footer .right { margin-left: auto; }
 
-.toast {
-  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0;
-  background: #fff; color: var(--ink); font-weight: 700; font-size: 14px;
-  padding: 10px 18px; border-radius: 99px; transition: opacity .2s, transform .2s; z-index: 200; pointer-events: none;
-}
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 16px); opacity: 0; background: var(--ink); color: #fff; font-weight: 600; font-size: 14px; padding: 10px 18px; border-radius: 999px; transition: opacity .2s, transform .2s; z-index: 200; pointer-events: none; box-shadow: var(--shadow-btn); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 900px) {
-  .top nav { display: none; }
-  .top .mini-dl { margin-left: auto; }
-  .hero .wrap, .head, .features, .cards, .faq { grid-template-columns: minmax(0, 1fr); }
-  .desk { aspect-ratio: 4 / 4.6; max-width: 520px; width: 100%; justify-self: center; }
-  .steps { grid-template-columns: minmax(0, 1fr); }
-  .tri { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .tri .shot:nth-child(2) { transform: none; }
-  .tri .shot:nth-child(3) { display: none; }
+/* ---------- responsive ---------- */
+@media (max-width: 960px) {
+  .topbar nav .hide-sm { display: none; }
+  .hero .wrap, .dl { grid-template-columns: minmax(0, 1fr); }
+  .fan { height: 420px; max-width: 520px; width: 100%; justify-self: center; }
+  .flow, .tiles, .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .models { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tips, .guide { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 520px) {
-  .dl-row { flex-direction: column; }
-  .btn-dl, .btn-ghost { justify-content: flex-start; }
-  .desk .note { display: none; }
-  .window { width: 66%; }
+@media (max-width: 560px) {
+  .topbar .brand span { display: none; }
+  .topbar nav { gap: 14px; }
+  .flow li { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .ws { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ws .shot:nth-child(2) { transform: none; }
+  .ws .shot:nth-child(3) { display: none; }
+  .cta .btn, .opts .btn { width: 100%; }
+  .fan { height: 360px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition: none !important; }
-  .window { transform: none; }
 }
 </style>
 </head>
 <body>
 
-<header class="top">
+<!-- line icons (one sprite, referenced with <use>) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 13.5 3.5 3.5 0 0 0 6.5 19z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 2 2"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4-4L5 21"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+  <symbol id="i-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/><path d="M18 9v6"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
+  <symbol id="i-frame" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+  <symbol id="i-gallery" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 24 24"><path d="m15 4 5 5"/><path d="M3 21 15 9"/><path d="M19 3v2"/><path d="M21 5h-2"/><path d="M8 3v2"/><path d="M9 4H7"/></symbol>
+  <symbol id="i-hdd" viewBox="0 0 24 24"><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M5 13 7.5 4h9L19 13"/><path d="M7 17h.01"/><path d="M11 17h.01"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h7.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H15"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01"/><path d="M7 17.5h.01"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2"/><path d="m10 10 2 2"/><path d="m13 7 2 2"/></symbol>
+  <symbol id="i-brush" viewBox="0 0 24 24"><path d="M9.5 14.5 18 6a2.1 2.1 0 0 1 3 3l-8.5 8.5"/><path d="M7 15c-2 0-4 1.5-4 4v2h2c2.5 0 4-2 4-4z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
+  <symbol id="i-windows" viewBox="0 0 24 24"><path d="M3 5.5 10 4.5v7H3z"/><path d="M13 4l8-1v8.5h-8z"/><path d="M3 13h7v7l-7-1z"/><path d="M13 13h8v8l-8-1.2z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/></symbol>
+</svg>
+
+<header class="topbar">
   <div class="wrap">
-    <a class="brand" href="#top"><img src="img/icon-64.png" alt="" width="30" height="30">PicGen <small>v{{VERSION}}</small></a>
+    <a class="brand" href="#top"><img src="img/icon-64.png" alt="" width="26" height="26">PICGEN <span>· 桌面 AI 生图</span></a>
     <nav>
-      <a href="#features">功能</a>
-      <a href="#screens">界面</a>
-      <a href="#workspace">图片工作台</a>
-      <a href="#faq">常见问题</a>
+      <a class="hide-sm" href="#features">功能</a>
+      <a class="hide-sm" href="#screens">界面</a>
+      <a class="main-link" href="{{MAIN_SITE_URL}}" target="_blank" rel="noopener">AZGLB 主站<svg class="i" style="width:14px;height:14px"><use href="#i-arrow"/></svg></a>
+      <a class="btn btn-dark" href="#download">下载</a>
     </nav>
-    <a class="mini-dl" href="#download">下载</a>
   </div>
 </header>
 
@@ -314,166 +260,137 @@ footer .right { margin-left: auto; }
   <section class="hero">
     <div class="wrap">
       <div>
-        <p class="eyebrow rise d1">Windows 桌面 AI 生图工具</p>
-        <h1 class="rise d2">贴在屏幕边上的<br><span class="warm">生图小窗</span></h1>
-        <p class="lede rise d3">PicGen 平时缩成屏幕边缘的一条小标签，用的时候点开就能写提示词、拖参考图、出图。接入 GPT Image、Gemini（Nano Banana）、Grok、Seedream 和各家中转站，一家出错自动换下一家。</p>
-        <div class="rise d4">
-          <div class="dl-row">
-            <a class="btn-dl" href="{{DIRECT_URL}}" download="{{FILE_NAME}}" data-track="direct">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-              <span><b>直接下载</b><span>v{{VERSION}} · {{SIZE_MB}} MB · 国内直连</span></span>
-            </a>
-            <a class="btn-ghost" href="#download">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 13.5 3.5 3.5 0 0 0 6.5 19z"/></svg>
-              <span><b>百度网盘</b><span>备用下载</span></span>
-            </a>
-          </div>
-          <div class="facts">
-            <span><i>Windows 10 / 11</i> 64 位</span>
-            <span><i>便携版</i> 免安装，双击运行</span>
-            <span><i>本地运行</i> 不上传任何图片和密钥</span>
-          </div>
+        <span class="eyebrow">GPT Image · Nano Banana · Grok · Seedream</span>
+        <h1>贴在屏幕边上的<br>AI 生图小窗</h1>
+        <div class="chips">
+          <span class="chip"><svg class="i"><use href="#i-box"/></svg>免安装</span>
+          <span class="chip"><svg class="i"><use href="#i-zap"/></svg>国内直连下载</span>
+          <span class="chip"><svg class="i"><use href="#i-shuffle"/></svg>多家自动切换</span>
+          <span class="chip"><svg class="i"><use href="#i-lock"/></svg>数据只在本机</span>
+        </div>
+        <div class="cta">
+          <a class="btn btn-dark btn-lg" href="{{DIRECT_URL}}" download="{{FILE_NAME}}" data-track="direct"><svg class="i"><use href="#i-download"/></svg>下载 Windows 版 <small>{{SIZE_MB}} MB</small></a>
+          <a class="btn btn-light btn-lg" href="#download"><svg class="i"><use href="#i-cloud"/></svg>百度网盘</a>
+        </div>
+        <div class="meta">
+          <span><svg class="i"><use href="#i-windows"/></svg>Windows 10 / 11 · 64 位</span>
+          <span class="mono">v{{VERSION}}</span>
         </div>
       </div>
-
-      <div class="desk" aria-label="PicGen 停靠在屏幕右侧边缘">
-        <div class="icons"><span></span><span></span><span></span></div>
-        <div class="note"><span class="mono">DOCK · 停靠</span>把窗口拖到屏幕边缘，它就收成一条小标签；鼠标移过去就展开。</div>
+      <div class="fan" aria-label="PicGen 界面截图">
+        <div class="card c1"><img src="img/history.webp" width="920" height="1600" alt="历史图片"></div>
+        <div class="card c2"><img src="img/workspace-annotate.webp" width="920" height="1600" alt="图片工作台"></div>
+        <div class="card c3"><img src="img/generate.webp" width="920" height="1600" alt="生成界面"></div>
         <div class="tab"></div>
-        <div class="window"><img src="img/generate.webp" width="920" height="1600" alt="PicGen 生成界面：提示词里引用两张参考图"></div>
-        <div class="bar"><i></i><i></i><i></i><span class="clock">{{BUILD_DATE}}</span></div>
+        <div class="badge"><span class="dot"></span>出错自动换下一家</div>
       </div>
     </div>
   </section>
 
-  <div class="models">
+  <section style="padding-top:0;margin-top:-28px;position:relative">
     <div class="wrap">
-      <span class="label">支持的模型与接口</span>
-      <b>OpenAI GPT Image</b>
-      <b>Google Gemini · Nano Banana</b>
-      <b>xAI Grok Imagine</b>
-      <b>豆包 Seedream</b>
-      <b>兼容以上接口的中转站</b>
-    </div>
-  </div>
-
-  <section class="block" id="features">
-    <div class="wrap">
-      <div class="head">
-        <div>
-          <p class="eyebrow">Features</p>
-          <h2>为天天出图的人做的工具</h2>
-        </div>
-        <p>不是又一个网页生图站。PicGen 是常驻桌面的小窗，接你自己的 API，把出图、改图、找图放在一个地方。</p>
-      </div>
-      <div class="features">
-        <div class="feat"><span class="n">01</span><div><h3>悬浮小窗，不占地方</h3><p>拖到屏幕边缘就停靠成一条小标签，鼠标移过去展开。可以置顶，编辑时不会自动收起。</p></div></div>
-        <div class="feat"><span class="n">02</span><div><h3>多供应商自动切换</h3><p>按优先级、负载、价格或速度分配任务。某一家报错或排队，自动换下一家重试。</p></div></div>
-        <div class="feat"><span class="n">03</span><div><h3>多序列并行</h3><p>开几个序列同时跑不同的任务，每个序列有自己的提示词、模型和参考图。</p></div></div>
-        <div class="feat"><span class="n">04</span><div><h3>参考图直接 @ 引用</h3><p>输入 @ 选一张参考图，提示词里出现带缩略图的标签，模型就知道"这张"指的是哪张。</p></div></div>
-        <div class="feat"><span class="n">05</span><div><h3>图片工作台</h3><p>画框标注要改的地方、摆放尺寸参照物、涂抹蒙版做局部修改，选好模型一键发回生成。</p></div></div>
-        <div class="feat"><span class="n">06</span><div><h3>历史资产库</h3><p>每张图都带着提示词保存。可以搜索、筛选、查找相似图，直接拖进 PS / AI 使用。</p></div></div>
-        <div class="feat"><span class="n">07</span><div><h3>提示词优化与反推</h3><p>一句话想法改写成完整提示词；拿一张图反推出可复用的提示词。</p></div></div>
-        <div class="feat"><span class="n">08</span><div><h3>数据全在本地</h3><p>配置、密钥、图片都存在你自己的电脑上，软件只请求你配置的接口，不收集任何数据。</p></div></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="block" id="screens" style="padding-top:0">
-    <div class="wrap">
-      <div class="head">
-        <div>
-          <p class="eyebrow">Screens</p>
-          <h2>一个窗口，管完整个流程</h2>
-        </div>
-        <p>左右滑动查看。截图来自演示环境，图片为示意图。</p>
-      </div>
-    </div>
-    <div class="reel">
-      <figure class="shot"><div class="frame"><img src="img/generate.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>生成</b>提示词里直接引用参考图</figcaption></figure>
-      <figure class="shot"><div class="frame"><img src="img/optimize.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>优化</b>流式改写提示词</figcaption></figure>
-      <figure class="shot"><div class="frame"><img src="img/history.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>历史</b>搜索、筛选、找相似</figcaption></figure>
-      <figure class="shot"><div class="frame"><img src="img/history-detail.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>详情</b>提示词和参数随图保存</figcaption></figure>
-      <figure class="shot"><div class="frame"><img src="img/queue.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>队列</b>每个任务的进度一目了然</figcaption></figure>
-      <figure class="shot"><div class="frame"><img src="img/settings-suppliers.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>供应商</b>健康状态实时显示</figcaption></figure>
-      <figure class="shot"><div class="frame"><img src="img/settings-routing.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>路由</b>价格、速度、优先级任选</figcaption></figure>
-      <figure class="shot"><div class="frame"><img src="img/reverse-prompt.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>反推</b>从图片提取提示词</figcaption></figure>
-    </div>
-  </section>
-
-  <section class="block" id="workspace" style="padding-top:clamp(24px,4vw,48px)">
-    <div class="wrap">
-      <div class="head">
-        <div>
-          <p class="eyebrow">Image Workspace</p>
-          <h2>改图，不用重新描述一遍</h2>
-        </div>
-        <p>右键任意一张图发送到图片工作台：标注要改的地方、放一个真实尺寸的参照物，或者只涂抹要重画的区域。PicGen 会按所选模型自动组织参考图和提示词。</p>
-      </div>
-      <div class="tri">
-        <figure class="shot"><div class="frame"><img src="img/workspace-annotate.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>标注</b>画框写下修改意见</figcaption></figure>
-        <figure class="shot"><div class="frame"><img src="img/workspace-scale.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>比例</b>门、长椅、硬币做尺寸参照</figcaption></figure>
-        <figure class="shot"><div class="frame"><img src="img/workspace-mask.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><b>蒙版</b>只重画涂抹的区域</figcaption></figure>
-      </div>
-    </div>
-  </section>
-
-  <section class="block download" id="download">
-    <div class="wrap">
-      <div class="head">
-        <div>
-          <p class="eyebrow">Download · v{{VERSION}}</p>
-          <h2>下载 PicGen</h2>
-        </div>
-        <p>两个地址是同一个文件。优先用直接下载；公司网络拦截下载时，用百度网盘。</p>
-      </div>
-      <div class="cards">
-        <div class="card">
-          <h3>直接下载 <span class="tag">推荐</span></h3>
-          <p>国内服务器直连，不经过 GitHub，下载完双击就能运行。</p>
-          <a class="btn-dl" href="{{DIRECT_URL}}" download="{{FILE_NAME}}" data-track="direct">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            <span><b>下载 {{FILE_NAME}}</b><span>{{SIZE_MB}} MB · Windows 10 / 11 64 位</span></span>
-          </a>
-          <dl class="kv">
-            <dt>版本</dt><dd>{{VERSION}}（{{BUILD_DATE}}）</dd>
-            <dt>大小</dt><dd>{{SIZE_BYTES}} 字节</dd>
-            <dt>SHA-256</dt><dd>{{SHA256}}</dd>
-          </dl>
-        </div>
-        <div class="card">
-          <h3>百度网盘 <span class="tag cool">备用</span></h3>
-          <p>直接下载不了时使用。打开链接后保存或下载 {{FILE_NAME}}。</p>
-          {{BAIDU_BLOCK}}
-        </div>
-      </div>
-      <ol class="steps">
-        <li><b>下载后双击运行。</b>便携版不用安装。Windows 提示"已保护你的电脑"时，点"更多信息 → 仍要运行"（软件没有代码签名）。</li>
-        <li><b>添加供应商。</b>左下角 ⚙ 设置 → API 提供商，填接口地址、API Key 和模型名，可以先点"测试连接"。</li>
-        <li><b>开始出图。</b>写提示词、拖参考图、点生成。换电脑时把 exe 和旁边的 <span class="mono">PicGenData</span> 文件夹一起搬走。</li>
+      <ol class="flow">
+        <li><span class="ico"><svg class="i"><use href="#i-key"/></svg></span><div><span class="num">01</span><b>填 API Key</b></div></li>
+        <li><span class="ico"><svg class="i"><use href="#i-pen"/></svg></span><div><span class="num">02</span><b>写提示词</b></div></li>
+        <li><span class="ico"><svg class="i"><use href="#i-image"/></svg></span><div><span class="num">03</span><b>拖参考图</b></div></li>
+        <li><span class="ico"><svg class="i"><use href="#i-sparkles"/></svg></span><div><span class="num">04</span><b>一键出图</b></div></li>
       </ol>
     </div>
   </section>
 
-  <section class="block" id="faq" style="padding-top:0">
+  <section style="padding-top:clamp(20px,3vw,32px)">
     <div class="wrap">
-      <div class="head">
-        <div>
-          <p class="eyebrow">FAQ</p>
-          <h2>常见问题</h2>
-        </div>
+      <div class="sec-head"><div><span class="eyebrow">Models</span><h2>主流模型都能接</h2></div></div>
+      <div class="models">
+        <div class="model"><span class="logo">{{ICON_OPENAI}}</span>GPT Image<small>OpenAI</small></div>
+        <div class="model"><span class="logo">{{ICON_GEMINI}}</span>Nano Banana<small>Google Gemini</small></div>
+        <div class="model"><span class="logo">{{ICON_GROK}}</span>Grok Imagine<small>xAI</small></div>
+        <div class="model"><span class="logo">{{ICON_DOUBAO}}</span>Seedream<small>豆包</small></div>
+        <div class="model"><span class="logo"><svg class="i" style="width:34px;height:34px;color:var(--accent)"><use href="#i-plug"/></svg></span>中转站<small>兼容以上接口</small></div>
       </div>
-      <div class="faq">
+    </div>
+  </section>
+
+  <section id="features" class="soft">
+    <div class="wrap">
+      <div class="sec-head"><div><span class="eyebrow">Features</span><h2>出图、改图、找图，一个小窗搞定</h2></div></div>
+      <div class="tiles">
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-dock"/></svg></span><b>悬浮停靠</b><span>屏幕边缘一条小标签</span></div>
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-route"/></svg></span><b>自动切换</b><span>一家出错换下一家</span></div>
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-layers"/></svg></span><b>多序列并行</b><span>同时跑多组任务</span></div>
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-at"/></svg></span><b>@ 引用参考图</b><span>指哪张用哪张</span></div>
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-frame"/></svg></span><b>图片工作台</b><span>标注 · 比例 · 蒙版</span></div>
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-gallery"/></svg></span><b>历史资产库</b><span>搜索 · 找相似 · 拖进 PS</span></div>
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-wand"/></svg></span><b>提示词优化</b><span>一句话变完整描述</span></div>
+        <div class="tile"><span class="ico"><svg class="i"><use href="#i-hdd"/></svg></span><b>本地存储</b><span>不上传图片和密钥</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <div class="sec-head"><div><span class="eyebrow">Screens</span><h2>界面一览</h2></div></div>
+      <div class="gallery">
+        <figure class="shot"><div class="frame"><img src="img/generate.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-sparkles"/></svg>生成</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/optimize.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-wand"/></svg>提示词优化</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/history.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-gallery"/></svg>历史资产</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/history-detail.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-image"/></svg>图片详情</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/queue.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-list"/></svg>任务队列</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/settings-suppliers.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-server"/></svg>供应商</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/settings-routing.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-route"/></svg>路由策略</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/reverse-prompt.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-scan"/></svg>提示词反推</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="soft">
+    <div class="wrap">
+      <div class="sec-head"><div><span class="eyebrow">Image Workspace</span><h2>改图不用重写提示词</h2></div></div>
+      <div class="ws">
+        <figure class="shot"><div class="frame"><img src="img/workspace-annotate.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-pen"/></svg>标注</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/workspace-scale.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-ruler"/></svg>尺寸参照</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="img/workspace-mask.webp" width="920" height="1600" loading="lazy" alt=""></div><figcaption><svg class="i"><use href="#i-brush"/></svg>蒙版局部重绘</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap">
+      <div class="dl">
         <div>
-          <details><summary>PicGen 收费吗？</summary><p>软件本身免费。出图费用由你接入的模型供应商收取，PicGen 不经手任何费用。</p></details>
-          <details><summary>需要自己准备 API Key 吗？</summary><p>需要。PicGen 是客户端，可以接 OpenAI、Google 官方接口，也可以接各类兼容这些接口的中转站，Key 填在设置里。</p></details>
-          <details><summary>我的图片和 Key 会被上传吗？</summary><p>不会。PicGen 只请求你自己配置的接口地址；相似图分析用的是内置在软件里的本地模型。</p></details>
+          <span class="eyebrow">Download · v{{VERSION}}</span>
+          <h2>下载 PicGen</h2>
+          <div class="opts">
+            <a class="btn btn-dark btn-lg" href="{{DIRECT_URL}}" download="{{FILE_NAME}}" data-track="direct"><svg class="i"><use href="#i-download"/></svg>直接下载 <small>{{SIZE_MB}} MB</small></a>
+            {{BAIDU_BUTTON}}
+          </div>
+          {{BAIDU_CODE}}
+          <dl class="specs">
+            <dt>文件</dt><dd>{{FILE_NAME}}</dd>
+            <dt>SHA-256</dt><dd>{{SHA256}}</dd>
+          </dl>
         </div>
-        <div>
-          <details><summary>杀毒软件或 Windows 拦截怎么办？</summary><p>程序没有代码签名，首次运行可能被 SmartScreen 提示。可以核对上面的 SHA-256 校验值，确认文件完整后点"更多信息 → 仍要运行"。</p></details>
-          <details><summary>换电脑后历史和配置都没了？</summary><p>数据在 exe 旁边的 PicGenData 文件夹里，要整个文件夹一起复制（包括里面的 Local State，否则保存的 API Key 无法解密）。</p></details>
-          <details><summary>怎么升级到新版本？</summary><p>把新的 exe 放到旧 exe 所在的文件夹（和 PicGenData 放在一起）运行即可，配置和历史都会保留。</p></details>
-        </div>
+        <ol class="steps">
+          <li><span class="n">1</span><svg class="i"><use href="#i-download"/></svg><div><b>双击运行</b><span>便携版，免安装</span></div></li>
+          <li><span class="n">2</span><svg class="i"><use href="#i-key"/></svg><div><b>添加供应商</b><span>设置 → API 提供商</span></div></li>
+          <li><span class="n">3</span><svg class="i"><use href="#i-sparkles"/></svg><div><b>开始出图</b><span>写提示词，点生成</span></div></li>
+        </ol>
+      </div>
+      <div class="tips">
+        <div class="tip"><span class="ico"><svg class="i"><use href="#i-shield"/></svg></span><div><b>Windows 拦截？</b><span>更多信息 → 仍要运行</span></div></div>
+        <div class="tip"><span class="ico"><svg class="i"><use href="#i-folder"/></svg></span><div><b>换电脑 / 升级</b><span>exe 和 PicGenData 放一起</span></div></div>
+        <div class="tip"><span class="ico"><svg class="i"><use href="#i-tag"/></svg></span><div><b>软件免费</b><span>出图费用由你的供应商收取</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="soft" id="azglb">
+    <div class="wrap">
+      <div class="sec-head"><div><span class="eyebrow">AZGLB · 亚马逊视觉与 3D 工作室</span><h2>更多工具和服务</h2></div></div>
+      <div class="guide">
+        <a class="g-card" href="{{MAIN_SITE_URL}}/" target="_blank" rel="noopener"><span class="ico"><svg class="i"><use href="#i-box"/></svg></span><div><b>免费 3D 模型检测</b><span>GLB 在线查看、校验、优化</span></div><svg class="i go"><use href="#i-arrow"/></svg></a>
+        <a class="g-card" href="{{MAIN_SITE_URL}}/?page=cases" target="_blank" rel="noopener"><span class="ico"><svg class="i"><use href="#i-gallery"/></svg></span><div><b>亚马逊视觉案例</b><span>主图 · A+ · 3D · 视频</span></div><svg class="i go"><use href="#i-arrow"/></svg></a>
+        <a class="g-card" href="{{MAIN_SITE_URL}}/?page=cases#cs-contact" target="_blank" rel="noopener"><span class="ico"><svg class="i"><use href="#i-message"/></svg></span><div><b>找我做图</b><span>微信一条消息就报价</span></div><svg class="i go"><use href="#i-arrow"/></svg></a>
       </div>
     </div>
   </section>
@@ -481,8 +398,9 @@ footer .right { margin-left: auto; }
 
 <footer>
   <div class="wrap">
-    <span>© PicGen</span>
+    <span>PicGen · <a href="{{MAIN_SITE_URL}}" target="_blank" rel="noopener">AZGLB</a></span>
     {{CONTACT}}
+    <span>模型图标 LobeHub Icons（MIT）</span>
     <span class="right mono">v{{VERSION}} · {{BUILD_DATE}}</span>
   </div>
 </footer>
@@ -521,9 +439,8 @@ footer .right { margin-left: auto; }
       if (code) copyText(code).then(function () { say('提取码 ' + code + ' 已复制'); }, function () {});
     });
   });
-  // PicGen is Windows-only: warn phone and Mac visitors before a 100+ MB download.
-  var ua = navigator.userAgent || '';
-  if (!/Windows/i.test(ua)) {
+  // PicGen is Windows-only: tell phone and Mac visitors before a 100+ MB download.
+  if (!/Windows/i.test(navigator.userAgent || '')) {
     document.querySelectorAll('[data-track="direct"]').forEach(function (link) {
       link.addEventListener('click', function () { say('PicGen 目前只支持 Windows 电脑'); });
     });
