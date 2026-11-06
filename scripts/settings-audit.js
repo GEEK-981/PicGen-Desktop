@@ -134,7 +134,7 @@ function launch(root, port) {
                 return {
                     name: value('unifiedSupplierNameInput'), baseUrl: value('unifiedSupplierBaseUrlInput'),
                     models: [...form.querySelectorAll('.unified-model-name')].map(input => input.value),
-                    maxConcurrent: form.querySelector('#unifiedGroupMaxConcurrentInput')?.value,
+                    maxConcurrent: form.querySelector('#unifiedGroupConcurrencyInput')?.value,
                     apiKeyFocused: document.activeElement?.id === 'unifiedGroupApiKeyInput',
                     hint: document.querySelector('.supplier-template-hint')?.textContent.trim()
                 };
