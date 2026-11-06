@@ -143,6 +143,7 @@ async function buildSite({ copyExe = true } = {}) {
         SHA256: hash,
         DIRECT_URL: escapeHtml(directUrl),
         BUILD_DATE: buildDate,
+        OG_IMAGE: escapeHtml(siteUrl ? `${siteUrl}/img/og.png` : 'img/og.png'),
         CANONICAL: siteUrl ? `<link rel="canonical" href="${escapeHtml(siteUrl)}/">` : '',
         CONTACT: config.contact ? `<span>${escapeHtml(config.contact)}</span>` : ''
     };

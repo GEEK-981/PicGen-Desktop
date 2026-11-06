@@ -80,3 +80,6 @@ test-output/
 
 # ML models fetched by scripts/fetch-models.js (sha256-pinned, cached per user)
 /models/
+
+# landing-page server details (scripts/deploy-site.js)
+site/deploy.local.json

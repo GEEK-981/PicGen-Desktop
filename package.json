@@ -14,6 +14,7 @@
     "build:win:portable": "node scripts/build-portable.js",
     "build:site": "node scripts/build-site.js",
     "preview:site": "node scripts/serve-site.js",
+    "deploy:site": "node scripts/build-site.js && node scripts/deploy-site.js",
     "build:ui": "node scripts/build-icons.js && node scripts/build-ui-layout.js && vite build",
     "prestart": "npm run build:ui && node scripts/fetch-models.js --optional",
     "predesktop": "npm run build:ui && node scripts/fetch-models.js --optional",

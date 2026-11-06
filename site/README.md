@@ -67,10 +67,22 @@ dist/site/
 
 访客点"打开百度网盘"时，提取码会自动复制到剪贴板。
 
+## 线上地址与一键部署
+
+线上地址：<https://picgen.azglb.top>（nginx 静态站，Let's Encrypt 证书自动续期）。
+
+服务器上的目录结构：`/var/www/picgen/releases/<版本-时间>/` 存每次上传的完整站点，`/var/www/picgen/current` 软链接指向正在使用的那一份，nginx 只认 `current`。切换软链接是原子操作，访客不会看到上传了一半的页面；回滚就是把软链接改回旧目录。
+
+`npm run deploy:site` = 生成页面 + 上传新目录 + 切换软链接 + 只保留最近 3 份。服务器地址和密钥路径写在 `site/deploy.local.json`（已加入 .gitignore，不会提交到公开仓库）：
+
+```json
+{ "host": "root@服务器IP", "key": "C:/Users/你/.ssh/服务器密钥.pem", "root": "/var/www/picgen", "keep": 3 }
+```
+
 ## 发新版本
 
 1. `npm run build:win:portable`
 2. 把新 exe 上传到网盘，更新 `site.config.json` 里的链接（网盘链接会变）。
-3. `npm run build:site`，重新上传 `dist/site`。旧版本的 exe 可以删掉。
+3. `npm run deploy:site`。
 
 页面上的版本号、文件大小、SHA-256 和下载文件名都在生成时自动从 exe 读取，不用手改。
