@@ -425,17 +425,33 @@ body.edge-hidden[data-dock-edge='right'] .collapsed-launcher { border-radius: 6p
 #settingsOverlay .settings-mode-tabs {
   display: flex; flex-wrap: nowrap; justify-content: flex-start; gap: 2px;
   padding: 4px 8px 0; overflow-x: auto; overflow-y: hidden;
-  scroll-snap-type: x proximity; scroll-padding-inline: 8px; overscroll-behavior-x: contain;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 #settingsOverlay .settings-mode-tabs::-webkit-scrollbar { display: none; }
-#settingsOverlay .settings-mode-tabs.can-scroll-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
-#settingsOverlay .settings-mode-tabs.can-scroll-left { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px); mask-image: linear-gradient(to right, transparent, #000 28px); }
-#settingsOverlay .settings-mode-tabs.can-scroll-left.can-scroll-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+/* The sheet is a grid and grid items are at least as wide as their content by default:
+   without min-width: 0 the one-row tab strip widened the whole settings page past the
+   460px window (content spilled off the right edge and the strip never had to scroll). */
+.settings-tabs-wrap, #settingsOverlay .settings-mode-tabs { min-width: 0; max-width: 100%; }
+/* MCP: client select + two buttons in one non-wrapping row needed ~480px and pushed the
+   whole form 70px past a 460px window. Select on its own row, buttons share the next. */
+#mcpSettingsPanel .settings-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#mcpSettingsPanel .settings-actions > :not(.picgen-action) { grid-column: 1 / -1; min-width: 0; }
+#mcpSettingsPanel .settings-actions > .picgen-action { min-width: 0; width: 100%; }
+/* A short page (网络设置, 保存目录) used to scroll by the last section's 10px bottom margin. */
+.settings-scroll-panel > .settings-form:last-child { margin-bottom: 0; }
+/* Edge buttons: shown only while tabs are hidden on that side; a click pages the row. */
+.settings-tabs-wrap { position: relative; }
+.settings-tabs-nav { position: absolute; top: 4px; bottom: 1px; z-index: 2; width: 30px; display: none; align-items: center; justify-content: center; padding: 0; border: 0; cursor: pointer; color: var(--foreground-emphasis); }
+.settings-tabs-nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.settings-tabs-nav:hover { color: var(--primary); }
+.settings-tabs-nav.prev { left: 0; background: linear-gradient(to right, var(--background) 55%, transparent); }
+.settings-tabs-nav.next { right: 0; background: linear-gradient(to left, var(--background) 55%, transparent); }
+.settings-tabs-wrap.can-scroll-left .settings-tabs-nav.prev, .settings-tabs-wrap.can-scroll-right .settings-tabs-nav.next { display: flex; }
 #settingsOverlay .settings-mode-tabs .settings-mode-tab {
   flex: 0 0 auto; min-width: auto; display: inline-flex; grid-template-rows: none;
   align-items: center; gap: 6px; height: 38px; min-height: 38px; padding: 0 12px;
-  border: 0; border-radius: 0; background: transparent; scroll-snap-align: start;
+  border: 0; border-radius: 0; background: transparent;
 }
 #settingsOverlay .settings-mode-tabs .settings-mode-tab span { width: auto; overflow: visible; font-size: 12px; }
 #settingsOverlay .settings-mode-tabs .settings-mode-tab svg { display: block; }

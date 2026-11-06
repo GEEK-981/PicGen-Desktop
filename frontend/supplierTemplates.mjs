@@ -15,7 +15,7 @@ export const SUPPLIER_TEMPLATES = [
         icon: 'zap',
         group: {
             name: '生图',
-            maxConcurrent: 5,
+            maxConcurrent: 10,
             models: ['gemini-3.1-flash-image', 'nano-banana-pro', 'gpt-image-2', 'gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'],
             modelRouting: {}
         }
@@ -31,7 +31,7 @@ export const SUPPLIER_TEMPLATES = [
         icon: 'atom',
         group: {
             name: '生图',
-            maxConcurrent: 8,
+            maxConcurrent: 10,
             models: ['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'gpt-image-2', 'gpt-image-2.5-sunburst', 'gpt-image-2.5-flare', 'gpt-image-2.6-sunburst'],
             // This relay serves Gemini models through the native Gemini endpoint.
             modelRouting: {

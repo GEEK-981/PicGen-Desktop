@@ -54,8 +54,8 @@ export function validateSupplierIdentity({ name = '', baseUrl = '' } = {}) {
 export function validateGroupCapacity({ role = 'image', maxConcurrent } = {}) {
     if (role !== 'image') return;
     const value = Number(maxConcurrent);
-    if (!Number.isInteger(value) || value < 1 || value > 8) {
-        const error = new Error('最大并发请填写 1～8 的整数');
+    if (!Number.isInteger(value) || value < 1 || value > 20) {
+        const error = new Error('最大并发请填写 1～20 的整数');
         error.field = 'maxConcurrent';
         throw error;
     }

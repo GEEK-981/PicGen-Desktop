@@ -4320,7 +4320,7 @@ function fillProviderCapacityForm() {
         || getPresetById(state.currentPresetId)
         || state.presets[0];
     if (!preset) {
-        el.providerConcurrencyInput.value = '1';
+        el.providerConcurrencyInput.value = '10';
         el.providerPriorityInput.value = '1';
         return;
     }
@@ -5112,18 +5112,29 @@ function hideSettingsPage() {
 }
 
 // The settings tabs are one row that scrolls sideways when the window is narrow
-// (460px default): a vertical wheel scrolls it, and the edges fade while more
-// tabs are hidden on that side (.can-scroll-left / .can-scroll-right).
+// (460px default). Edge buttons page it and show only while tabs are hidden on
+// that side (#settingsTabsWrap.can-scroll-left / .can-scroll-right); a vertical
+// wheel scrolls it too; a picked tab is centred so its neighbours stay visible.
+const settingsTabsStrip = () => document.querySelector('#settingsTabsWrap .settings-mode-tabs');
+
 function updateSettingsTabsOverflow() {
-    const strip = el.imageSettingsTab?.parentElement;
-    if (!strip) return;
+    const strip = settingsTabsStrip();
+    const wrap = strip?.parentElement;
+    if (!strip || !wrap) return;
     const max = strip.scrollWidth - strip.clientWidth;
-    strip.classList.toggle('can-scroll-left', strip.scrollLeft > 1);
-    strip.classList.toggle('can-scroll-right', max - strip.scrollLeft > 1);
+    wrap.classList.toggle('can-scroll-left', strip.scrollLeft > 1);
+    wrap.classList.toggle('can-scroll-right', max - strip.scrollLeft > 1);
+}
+
+function scrollSettingsTabs(left) {
+    const strip = settingsTabsStrip();
+    if (!strip) return;
+    const max = Math.max(0, strip.scrollWidth - strip.clientWidth);
+    strip.scrollTo({ left: Math.max(0, Math.min(max, left)), behavior: 'smooth' });
 }
 
 function bindSettingsTabsScroll() {
-    const strip = el.imageSettingsTab?.parentElement;
+    const strip = settingsTabsStrip();
     if (!strip) return;
     strip.addEventListener('wheel', event => {
         if (strip.scrollWidth <= strip.clientWidth || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
@@ -5131,13 +5142,19 @@ function bindSettingsTabsScroll() {
         strip.scrollLeft += event.deltaY;
     }, { passive: false });
     strip.addEventListener('scroll', updateSettingsTabsOverflow, { passive: true });
+    // Each edge button moves the row by most of its visible width.
+    document.getElementById('settingsTabsPrev')?.addEventListener('click', () => scrollSettingsTabs(strip.scrollLeft - strip.clientWidth * 0.7));
+    document.getElementById('settingsTabsNext')?.addEventListener('click', () => scrollSettingsTabs(strip.scrollLeft + strip.clientWidth * 0.7));
     if (typeof ResizeObserver === 'function') new ResizeObserver(updateSettingsTabsOverflow).observe(strip);
     updateSettingsTabsOverflow();
 }
 
+// Centre the active tab (only the row scrolls, never the page) so both neighbours show.
 function revealActiveSettingsTab() {
-    const tab = el.imageSettingsTab?.parentElement?.querySelector('.settings-mode-tab.active');
-    tab?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    const strip = settingsTabsStrip();
+    const tab = strip?.querySelector('.settings-mode-tab.active');
+    if (!strip || !tab) return;
+    scrollSettingsTabs(tab.offsetLeft - strip.offsetLeft - (strip.clientWidth - tab.offsetWidth) / 2);
     requestAnimationFrame(updateSettingsTabsOverflow);
 }
 
@@ -5919,7 +5936,7 @@ function fillSettingsForm() {
         el.baseUrlInput.value = '';
         el.apiKeyInput.value = '';
         el.providerEnabledToggle.checked = true;
-        el.providerConcurrencyInput.value = '1';
+        el.providerConcurrencyInput.value = '10';
         el.providerPriorityInput.value = '1';
         renderModelRows([], {}, {}, []);
         el.deleteProviderBtn.disabled = true;

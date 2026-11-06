@@ -68,10 +68,10 @@ test('identity and capacity validation match the panel error copy', async () => 
     assert.throws(() => validateSupplierIdentity({ name: '', baseUrl: 'https://x.example' }), /名称和 Base URL/);
     assert.throws(() => validateSupplierIdentity({ name: 'x', baseUrl: 'ftp://x.example' }), /http:\/\/ 或 https:\/\//);
     assert.doesNotThrow(() => validateSupplierIdentity({ name: 'x', baseUrl: 'https://x.example' }));
-    assert.throws(() => validateGroupCapacity({ role: 'image', maxConcurrent: '9' }), /1～8 的整数/);
-    assert.throws(() => validateGroupCapacity({ role: 'image', maxConcurrent: '1.5' }), /1～8 的整数/);
+    assert.throws(() => validateGroupCapacity({ role: 'image', maxConcurrent: '21' }), /1～20 的整数/);
+    assert.throws(() => validateGroupCapacity({ role: 'image', maxConcurrent: '1.5' }), /1～20 的整数/);
     assert.doesNotThrow(() => validateGroupCapacity({ role: 'chat', maxConcurrent: '99' }));
-    assert.doesNotThrow(() => validateGroupCapacity({ role: 'image', maxConcurrent: '8' }));
+    assert.doesNotThrow(() => validateGroupCapacity({ role: 'image', maxConcurrent: '20' }));
 });
 
 test('mergeDiscoveredModels dedupes by id and accepts strings or objects', async () => {

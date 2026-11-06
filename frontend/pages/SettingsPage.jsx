@@ -6,6 +6,11 @@ import { Action, NativeSelect } from '../components';
 export function SettingsPage() { return (
 <section id="settingsOverlay" className="settings-page" aria-label="API 设置" hidden>
 <section className="settings-sheet" aria-label="API 设置">
+{/* The tab row scrolls sideways in a narrow window; the edge buttons page it
+    (desktop.js shows them only while tabs are hidden on that side). */}
+<div id="settingsTabsWrap" className="settings-tabs-wrap">
+<button id="settingsTabsPrev" type="button" className="settings-tabs-nav prev" aria-label="上一组设置" tabIndex={-1}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button>
+<button id="settingsTabsNext" type="button" className="settings-tabs-nav next" aria-label="下一组设置" tabIndex={-1}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button>
 <div className="settings-mode-tabs" role="tablist" aria-label="API 设置类型">
 <Action id="imageSettingsTab" className="settings-mode-tab active" type="button" role="tab" markup={"<i data-lucide=\"server\"></i><span>API 提供商</span>"} />
 <Action id="concurrencySettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"git-branch\"></i><span>并发策略</span>"} />
@@ -13,6 +18,7 @@ export function SettingsPage() { return (
 <Action id="networkSettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"network\"></i><span>网络设置</span>"} />
 <Action id="outputSettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"folder-cog\"></i><span>保存目录</span>"} />
 <Action id="mcpSettingsTab" className="settings-mode-tab" type="button" role="tab" markup={"<i data-lucide=\"cable\"></i><span>MCP</span>"} />
+</div>
 </div>
 {/* Hover-expand table of contents rail; desktop.js fills it from the visible
     panel's [data-toc-title] sections. */}
@@ -306,7 +312,7 @@ export function SettingsPage() { return (
 </span>
 <Action className="settings-help-icon" type="button" title="该提供商允许同时处理的请求数量" aria-label="提供商最大并发说明" markup={"<i data-lucide=\"circle-help\"></i>"} />
 </span>
-<Input inputSize="sm" id="providerConcurrencyInput" type="number" min="1" max="8" step="1" defaultValue="1" />
+<Input inputSize="sm" id="providerConcurrencyInput" type="number" min="1" max="20" step="1" defaultValue="10" />
 </label>
 <label id="providerPriorityField">
 <span>

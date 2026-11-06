@@ -436,7 +436,7 @@ function useGroupDraft(group, role, defaultPrompt) {
   const [groupName, setGroupName] = useState(group?.name || '');
   const [apiKey, setApiKey] = useState(group?.apiKey || '');
   const [groupRole, setGroupRole] = useState(group?.role || role || 'image');
-  const [maxConcurrent, setMaxConcurrent] = useState(String(group?.maxConcurrent || 1));
+  const [maxConcurrent, setMaxConcurrent] = useState(String(group?.maxConcurrent || 10));
   const [priority, setPriority] = useState(String(group?.priority || 1));
   const [enabled, setEnabled] = useState(group?.enabled !== false);
   const [prompt, setPrompt] = useState(group?.promptOptimizerSystemPrompt || defaultPrompt);
@@ -633,7 +633,7 @@ function GroupFields({ draft, protocols, baseUrl, actions }) {
           {groupRole === 'image' && (
             <label id="unifiedGroupConcurrencyField">
               <span>最大并发</span>
-              <Input inputSize="sm" id="unifiedGroupConcurrencyInput" type="number" min="1" max="8" step="1"
+              <Input inputSize="sm" id="unifiedGroupConcurrencyInput" type="number" min="1" max="20" step="1"
                 value={maxConcurrent} onChange={event => setMaxConcurrent(event.target.value)} />
             </label>
           )}
