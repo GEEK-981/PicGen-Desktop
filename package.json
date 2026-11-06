@@ -12,6 +12,8 @@
     "test:packaged": "node scripts/packaged-smoke.js",
     "build:win": "node scripts/build-portable.js --dir",
     "build:win:portable": "node scripts/build-portable.js",
+    "build:site": "node scripts/build-site.js",
+    "preview:site": "node scripts/serve-site.js",
     "build:ui": "node scripts/build-icons.js && node scripts/build-ui-layout.js && vite build",
     "prestart": "npm run build:ui && node scripts/fetch-models.js --optional",
     "predesktop": "npm run build:ui && node scripts/fetch-models.js --optional",
