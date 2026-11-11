@@ -35,7 +35,7 @@ dist/site/
 | `mainSiteUrl` | AZGLB 主站地址，默认 `https://azglb.top`。顶栏「AZGLB 主站」和底部三张引导卡片（免费 3D 模型检测 / 亚马逊视觉案例 / 找我做图）都从这里拼链接。 |
 | `directDownloadUrl` | exe 的下载地址。**留空**时 exe 会被复制到 `download/`，和页面放在同一个地方。exe 放在别处（比如对象存储）时，把完整地址填在这里，生成时就不再复制。 |
 | `copyExeToSite` | 留空 `directDownloadUrl` 时是否复制 exe，默认 `true`。 |
-| `baiduPanUrl` / `baiduPanCode` | 百度网盘分享链接（必须是 `https://pan.baidu.com/` 开头）和提取码。不填时页面显示"网盘链接整理中"。 |
+| `baiduPanUrl` / `baiduPanCode` | 百度网盘分享链接（必须是 `https://pan.baidu.com/` 开头）和提取码。不填时页面显示"网盘链接整理中"。现在填的是 **PicGen 文件夹**的分享链接：发新版时把 exe 上传到这个文件夹即可，不用再改这里。 |
 | `contact` | 页脚的联系方式，比如 QQ 群或邮箱，可以不填。 |
 
 改完配置要重新运行 `npm run build:site`。
