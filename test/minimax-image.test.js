@@ -112,3 +112,30 @@ test('the workspace groups MiniMax as its own family and marks edits in the imag
     assert.equal(modelFamily('MiniMax-H3-Image'), 'minimax');
     assert.equal(templateForModel('MiniMax-H3-Image-Highspeed'), 'marked');
 });
+
+test('model discovery on MiniMax hosts adds the H3 image models /v1/models leaves out', async () => {
+    assert.equal(minimax.isMinimaxProvider('https://api.minimax.cn'), true);
+    assert.equal(minimax.isMinimaxProvider('https://api.minimaxi.com/v1'), true);
+    assert.equal(minimax.isMinimaxProvider('https://api.minimax.io'), true);
+    assert.equal(minimax.isMinimaxProvider('https://minimax.example-relay.com'), false);
+    assert.equal(minimax.isMinimaxProvider('https://grsaiapi.com'), false);
+
+    const listed = [{ id: 'MiniMax-M3.1-Flash', supported_endpoint_types: ['openai'] }, { id: 'minimax-h3-image', supported_endpoint_types: ['image-generation'] }];
+    const merged = minimax.withImageModels('https://api.minimax.cn', listed);
+    assert.deepEqual(merged.map(item => item.id), ['MiniMax-H3-Image-Highspeed', 'MiniMax-M3.1-Flash', 'minimax-h3-image']);
+    assert.equal(minimax.withImageModels('https://zivv.pro', listed), listed);
+
+    const { discoverImageProviderCapabilities } = require('../apiService');
+    const server = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ data: [{ id: 'MiniMax-M3.1-Flash' }] }));
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+        // A non-MiniMax host gets exactly what /v1/models lists.
+        const result = await discoverImageProviderCapabilities({ provider: `http://127.0.0.1:${server.address().port}`, apiKey: 'k' });
+        assert.deepEqual(result.models.map(item => item.id), ['MiniMax-M3.1-Flash']);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});

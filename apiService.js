@@ -1590,7 +1590,7 @@ async function discoverImageProviderCapabilities(config) {
         }
         const data = JSON.parse(text || '{}');
         const rows = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
-        const models = rows.map(item => {
+        let models = rows.map(item => {
             const id = String(item.id || item.name || '').replace(/^models\//, '');
             const advertised = Array.isArray(item.supported_endpoint_types)
                 ? item.supported_endpoint_types.map(String)
@@ -1606,6 +1606,7 @@ async function discoverImageProviderCapabilities(config) {
             ])];
             return { id, supported_endpoint_types: supportedEndpointTypes };
         }).filter(item => item.id);
+        models = minimaxImage.withImageModels(provider, models);
         return {
             success: true,
             status: response.status,

@@ -33,6 +33,26 @@ function officialModelName(model = '') {
     return MODELS.find(official => official.toLowerCase() === name.toLowerCase()) || name;
 }
 
+// MiniMax's own hosts (api.minimax.cn / api.minimaxi.com / api.minimax.io).
+function isMinimaxProvider(provider = '') {
+    try {
+        const host = new URL(String(provider || '').trim()).hostname.toLowerCase();
+        return /(^|\.)minimaxi?\.(cn|com|io)$/.test(host);
+    } catch {
+        return false;
+    }
+}
+
+// MiniMax's /v1/models lists only its text (M-series) models, so model discovery
+// would never offer the image models; append them for MiniMax's own hosts.
+function withImageModels(provider, models = []) {
+    if (!isMinimaxProvider(provider)) return models;
+    const known = new Set(models.map(item => String(item.id || '').toLowerCase()));
+    const missing = MODELS.filter(id => !known.has(id.toLowerCase()))
+        .map(id => ({ id, supported_endpoint_types: ['image-generation'] }));
+    return [...missing, ...models];
+}
+
 function withinRatio(width, height) {
     return width > 0 && height > 0 && width * 3 >= height && height * 3 >= width;
 }
@@ -169,6 +189,8 @@ module.exports = {
     TIMEOUT_MS,
     MAX_REFERENCES,
     isMinimaxImageModel,
+    isMinimaxProvider,
+    withImageModels,
     officialModelName,
     resolveDimensions,
     buildRequest,
