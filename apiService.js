@@ -10,6 +10,7 @@ const { PROTOCOLS, normalizeProtocol, inferProtocol } = require('./protocolRoute
 const grsaiNanoBanana = require('./imageAdapters/grsaiNanoBanana');
 const grsaiGptImage = require('./imageAdapters/grsaiGptImage');
 const toapisImage = require('./imageAdapters/toapisImage');
+const minimaxImage = require('./imageAdapters/minimaxImage');
 const { throwIfAborted, createLinkedAbortController, delay, withRequestTimeout } = require('./requestLifecycle');
 
 // Relay stations sit behind slow TLS terminators; observed handshakes range from
@@ -1832,6 +1833,7 @@ async function generateImageRequest(config, callbacks = {}) {
     const isOpenAIImage = isOpenAIImageModel(model);
     const isGptImage = isOpenAIGptImageModel(model);
     const isDoubaoSeedream = isDoubaoSeedreamModel(model);
+    const isMinimaxImage = minimaxImage.isMinimaxImageModel(model);
     const requestedProtocol = normalizeProtocol(config.protocol);
     const resolvedProtocol = requestedProtocol === PROTOCOLS.AUTO
         ? inferProtocol({ baseUrl: provider }, model)
@@ -1849,11 +1851,12 @@ async function generateImageRequest(config, callbacks = {}) {
         || (!useGrsaiNanoBanana && requestedProtocol === PROTOCOLS.AUTO && isGeminiModel && !isOpenAIImage && !isXAI && !isDoubaoSeedream);
     const useOpenAIImages = resolvedProtocol === PROTOCOLS.OPENAI_IMAGES
         || useXAIImagineProtocol
-        || (!useGrsaiNanoBanana && requestedProtocol === PROTOCOLS.AUTO && (isOpenAIImage || isXAI || isDoubaoSeedream));
+        || (!useGrsaiNanoBanana && requestedProtocol === PROTOCOLS.AUTO && (isOpenAIImage || isXAI || isDoubaoSeedream || isMinimaxImage));
+    const useMinimaxImage = isMinimaxImage && useOpenAIImages;
     const isOpenAICompatibleGeminiImage = isGeminiModel && useOpenAIImages && !useGeminiNative;
     const isImage2 = isOpenAIImage2Model(model) || isOpenAIImage25Model(model);
     const effectivePrompt = withAspectRatioInstruction(prompt, ratio, generationConfig, imageSize);
-    const providerKind = providerKindForImage({
+    const providerKind = useMinimaxImage ? minimaxImage.PROVIDER_KIND : providerKindForImage({
         isGptImage,
         isImage2,
         isXAI,
@@ -1976,6 +1979,20 @@ async function generateImageRequest(config, callbacks = {}) {
         });
         requestBody = xaiRequest.requestBody;
         config._xaiEndpoint = xaiRequest.endpoint;
+    } else if (useMinimaxImage) {
+        // Ratio and area go upstream natively, so the raw prompt is sent without the ratio instruction.
+        const minimaxRequest = minimaxImage.buildRequest({
+            model,
+            prompt,
+            ratio,
+            imageSize,
+            referenceImages,
+            generationConfig,
+            operation
+        });
+        requestBody = minimaxRequest.body;
+        config._minimaxEndpoint = minimaxRequest.endpoint;
+        config._minimaxSize = requestBody.size || [requestBody.aspect_ratio, requestBody.area].filter(Boolean).join(' ') || 'auto';
     } else if (isDoubaoSeedream && useOpenAIImages) {
         const seedreamSize = resolveDoubaoSeedreamSize(ratio, imageSize, model, generationConfig);
         const seedreamPrompt = withDoubaoSeedreamAspectRatio(effectivePrompt, ratio, seedreamSize);
@@ -2107,6 +2124,8 @@ async function generateImageRequest(config, callbacks = {}) {
         fetchUrl = geminiGenerateContentUrl(baseUrl, baseModel, apiKey);
     } else if (isXAI && useOpenAIImages) {
         fetchUrl = openAIImagesUrl(baseUrl, config._xaiEndpoint || (hasRefs || isEditOperation ? 'edits' : 'generations'));
+    } else if (useMinimaxImage) {
+        fetchUrl = openAIImagesUrl(baseUrl, config._minimaxEndpoint);
     } else if (isDoubaoSeedream && useOpenAIImages) {
         fetchUrl = openAIImagesUrl(baseUrl, 'generations');
     } else if (useOpenAIImages) {
@@ -2134,6 +2153,8 @@ async function generateImageRequest(config, callbacks = {}) {
                 ? 'gemini-interactions'
                 : useGeminiNative
                     ? 'gemini-native'
+                    : useMinimaxImage
+                        ? 'minimax-h3-images'
                         : isXAI
                             ? 'xai-images'
                         : isDoubaoSeedream
@@ -2151,7 +2172,10 @@ async function generateImageRequest(config, callbacks = {}) {
 
             // Image2 / GPT Image can take several minutes, especially at 2K/4K sizes.
             const hasThinking = useGeminiNative && generationConfig.thinkingLevel && generationConfig.thinkingLevel !== 'none' && generationConfig.thinkingLevel !== 'default';
-            if (useGrsaiGptImage || useGrsaiNanoBanana || useOpenAIImages || isXAI) {
+            if (useMinimaxImage) {
+                // The server itself waits up to 600 s; giving up earlier only orphans a paid image.
+                currentTimeoutMs = minimaxImage.TIMEOUT_MS;
+            } else if (useGrsaiGptImage || useGrsaiNanoBanana || useOpenAIImages || isXAI) {
                 currentTimeoutMs = API_CONFIG.OPENAI_IMAGE_TIMEOUT;
             } else if (isDoubaoSeedream) {
                 currentTimeoutMs = API_CONFIG.OPENAI_IMAGE_TIMEOUT;
@@ -2173,7 +2197,7 @@ async function generateImageRequest(config, callbacks = {}) {
                 isOpenAIImage,
                 isGptImage,
                 isXAI,
-                imageSize: config._openAIImageSize || config._doubaoSeedreamSize || config._geminiImageConfig?.imageSize || imageSize,
+                imageSize: config._minimaxSize || config._openAIImageSize || config._doubaoSeedreamSize || config._geminiImageConfig?.imageSize || imageSize,
                 aspectRatio: config._geminiImageConfig?.aspectRatio || ratio,
                 ratio,
                 hasRefs,
@@ -2359,6 +2383,20 @@ async function generateImageRequest(config, callbacks = {}) {
                         }
                     }
                     throw createApiError(`Grsai 图片任务轮询超时（taskId=${taskId}）`, { retryable: false, ambiguous: true, code: 'OUTCOME_UNCERTAIN' });
+                }
+                if (useMinimaxImage) {
+                    const minimaxResult = minimaxImage.extractResult(data);
+                    const image = minimaxResult.base64
+                        ? { base64: minimaxResult.base64, mimeType: minimaxResult.mimeType }
+                        : await downloadImageAsBase64(minimaxResult.url, requestCallbacks);
+                    performanceLog.phases.complete = Date.now() - apiCallStartTime;
+                    console.log('[apiService] MiniMax H3-Image 完成:', {
+                        size: minimaxResult.size,
+                        requestId: minimaxResult.requestId,
+                        totalTime: `${performanceLog.phases.complete}ms`
+                    });
+                    clearTimeout(timeoutId);
+                    return { ...image, usageMetadata: minimaxResult.usageMetadata };
                 }
                 const result = await parseJsonResponse(data, useGeminiNative, requestCallbacks);
                 performanceLog.phases.complete = Date.now() - apiCallStartTime;

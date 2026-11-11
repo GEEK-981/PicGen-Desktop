@@ -35,10 +35,34 @@ function asDataUrl(ref = {}) {
     return String(ref.base64 || '').startsWith('data:') ? ref.base64 : `data:${mime};base64,${ref.base64 || ''}`;
 }
 
+function modelKey(model = '') {
+    return String(model || '').toLowerCase().replace(/[\s_\/-]/g, '');
+}
+
+// Grsai's GPT Image doc: gpt-image-2-vip and the 2.5/2.6 Flare/Sunburst models take
+// only 1–4K pixel values ("1024x1024"; a "1:1" ratio string is rejected), while plain
+// gpt-image-2 / 2.5 / 2.6 take a ratio ("16:9") or a 1K pixel value.
 function modelNeedsPixels(model = '') {
-    const value = String(model || '').toLowerCase();
-    // 2.6 is documented only by an example with a pixel size (1024x1024).
-    return value.includes('2.5') || value.includes('2.6') || value.includes('vip');
+    const value = modelKey(model);
+    return value.includes('vip') || value.includes('flare') || value.includes('sunburst');
+}
+
+// Documented quality tiers per model; anything above the model's ceiling is clamped
+// to its highest tier instead of being sent as a request bound to fail.
+const QUALITY_ORDER = ['auto', 'low', 'medium', 'high', 'xhigh', 'max'];
+function supportedQualities(model = '') {
+    const value = modelKey(model);
+    if (value.endsWith('gptimage2.5sunburst') || value.endsWith('gptimage25sunburst')) return QUALITY_ORDER;
+    if (modelNeedsPixels(model)) return QUALITY_ORDER.slice(0, 4);
+    return ['auto'];
+}
+
+function resolveQuality(model, generationConfig = {}) {
+    const quality = String(generationConfig.gptQuality || generationConfig.quality || 'auto').trim().toLowerCase();
+    const supported = supportedQualities(model);
+    if (supported.includes(quality)) return quality;
+    if (!QUALITY_ORDER.includes(quality)) return 'auto';
+    return supported[supported.length - 1];
 }
 
 // `background` is a Grsai-side extension over the OpenAI field: it accepts only
@@ -71,7 +95,9 @@ const PIXEL_MAP = {
 
 function buildGenerateRequest({ provider = '', model, prompt, ratio = '1:1', imageSize = '1K', referenceImages = [], generationConfig = {}, resolveSize } = {}) {
     let aspectRatio = String(ratio || '1:1').trim();
-    if (modelNeedsPixels(model)) {
+    if (aspectRatio.toLowerCase() === 'auto') {
+        aspectRatio = 'auto';
+    } else if (modelNeedsPixels(model)) {
         const tier = String(imageSize || '1K').toUpperCase();
         aspectRatio = /^\d+x\d+$/i.test(aspectRatio)
             ? aspectRatio
@@ -81,7 +107,7 @@ function buildGenerateRequest({ provider = '', model, prompt, ratio = '1:1', ima
     }
     const replyType = String(generationConfig.grsaiReplyType || 'json').trim().toLowerCase();
     if (!['json', 'stream', 'async'].includes(replyType)) throw new Error(`Grsai replyType 不支持: ${replyType}`);
-    const quality = String(generationConfig.gptQuality || generationConfig.quality || 'auto').trim().toLowerCase();
+    const quality = resolveQuality(model, generationConfig);
     const background = resolveBackground(model, generationConfig);
     const body = {
         model: String(model || '').trim(),
@@ -118,4 +144,4 @@ function extractResultUrl(payload = {}) {
     return String(payload.url || payload.imageUrl || payload.data?.url || '');
 }
 
-module.exports = { normalizeBaseUrl, isGrsaiProvider, isModel, shouldUse, generateUrl, resultUrl, buildGenerateRequest, resolvePixelSize, extractId, state, isDone, isFailed, extractResultUrl, supportsTransparentBackground, resolveBackground };
+module.exports = { modelNeedsPixels, supportedQualities, resolveQuality, normalizeBaseUrl, isGrsaiProvider, isModel, shouldUse, generateUrl, resultUrl, buildGenerateRequest, resolvePixelSize, extractId, state, isDone, isFailed, extractResultUrl, supportsTransparentBackground, resolveBackground };

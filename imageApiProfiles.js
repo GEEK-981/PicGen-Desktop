@@ -16,6 +16,8 @@
     ];
     const OPENAI_IMAGE25_RATIOS = [...OPENAI_IMAGE2_RATIOS, '9:21', '1:3', '3:1'];
     const OPENAI_IMAGE2_RESOLUTIONS = ['1K', '2K', '4K', 'custom'];
+    // MiniMax H3-Image accepts any X:Y between 1:3 and 3:1; auto lets prompt enhancement pick.
+    const MINIMAX_RATIOS = ['auto', '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '1:2', '2:1', '21:9', '9:21', '1:3', '3:1'];
 
     // GPT Image 2.5 (Sunburst / Flare) uses the same Image API size envelope
     // as GPT Image 2, while adding xhigh and max quality tiers.
@@ -124,7 +126,8 @@
     const VENDOR_PREFIXES = {
         openai: ['gptimage', 'dalle'],
         gemini: ['gemini', 'nanobanana'],
-        xai: ['grok']
+        xai: ['grok'],
+        minimax: ['minimax']
     };
 
     function belongsToOtherVendor(normalized, vendor) {
@@ -143,6 +146,12 @@
         const normalized = normalizeModelKeyword(model);
         if (belongsToOtherVendor(normalized, 'xai')) return false;
         return normalized.includes('grok');
+    }
+
+    // MiniMax H3-Image (official: MiniMax-H3-Image / MiniMax-H3-Image-Highspeed).
+    function isMinimaxImageModel(model = '') {
+        const normalized = normalizeModelKeyword(model);
+        return normalized.startsWith('minimaxh3image') || normalized === 'h3image' || normalized === 'h3imagehighspeed';
     }
 
     function isXAIImagineNativeModel(model = '') {
@@ -212,6 +221,7 @@
         if (isOpenAIImageModel(model)) return 'openai';
         if (isGeminiImageModel(model)) return 'gemini';
         if (isXAIImageModel(model)) return 'xai';
+        if (isMinimaxImageModel(model)) return 'minimax';
         return 'legacy';
     }
 
@@ -350,6 +360,22 @@
             };
         }
 
+        if (apiKind === 'minimax') {
+            return {
+                apiKind,
+                family: 'minimax-h3-image',
+                dimensionLabel: '比例',
+                dimensionOptions: labelOptions(MINIMAX_RATIOS),
+                imageSizeOptions: labelOptions(['1K', '2K', '4K']),
+                countOptions: labelOptions(COUNT_OPTIONS),
+                maxReferences: 16,
+                controls: {
+                    outputFormat: true,
+                    compression: true
+                }
+            };
+        }
+
         if (apiKind === 'openai') {
             let sizes = OPENAI_GPT_IMAGE_SIZES;
             if (family === 'gpt-image-2' || isGptImage25) sizes = OPENAI_IMAGE2_SIZES;
@@ -411,6 +437,7 @@
         GEMINI_FULL_RATIOS,
         GEMINI_STANDARD_RATIOS,
         XAI_RATIOS,
+        MINIMAX_RATIOS,
         OPENAI_GPT_IMAGE_SIZES,
         OPENAI_IMAGE2_RATIOS,
         OPENAI_IMAGE25_RATIOS,
@@ -428,6 +455,7 @@
         isXAIImageModel,
         isXAIImagineNativeModel,
         isXAIImagineImage2Model,
+        isMinimaxImageModel,
         isOpenAIGptImageModel,
         isOpenAIDallEModel,
         isOpenAIImageModel,

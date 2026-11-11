@@ -20,7 +20,7 @@ async function generateMaskedImage(config, callbacks, generate) {
     // ToAPIs 只有部分 GPT 模型（gpt-image-2-official、2.6 official）收 mask_url，其余走涂抹定位图
     const toapis = require('./imageAdapters/toapisImage');
     const toapisWithoutMask = toapis.shouldUse(config.provider, config.model, protocol) && !toapis.modelRules(config.model).mask;
-    const nativeMask = protocol === PROTOCOLS.OPENAI_IMAGES && !/gemini|banana|seedream|grok|flux/i.test(config.model) && !toapisWithoutMask;
+    const nativeMask = protocol === PROTOCOLS.OPENAI_IMAGES && !/gemini|banana|seedream|grok|flux|minimax|h3-?image/i.test(config.model) && !toapisWithoutMask;
     // 第 1 张是被编辑的原图，后面原样带上其他参考图（标注图、比例版面等）
     const extras = config.referenceImages.slice(1).filter(ref => ref?.base64);
     const refs = [{ base64: sourcePng.toString('base64'), mimeType: 'image/png' }, ...extras];

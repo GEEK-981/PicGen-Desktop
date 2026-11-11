@@ -124,10 +124,11 @@ export const MODEL_FAMILIES = [
     { id: 'gpt', label: 'GPT' },
     { id: 'grok', label: 'Grok' },
     { id: 'seedream', label: 'Seedream' },
+    { id: 'minimax', label: 'MiniMax' },
     { id: 'other', label: '其他' }
 ];
 const OPENAI_IMAGE = /(^|[\/_-])(gpt-image|dall-e|chatgpt-image)/i;
-const NOT_OPENAI = /gemini|banana|seedream|grok|flux|imagen|qwen/i;
+const NOT_OPENAI = /gemini|banana|seedream|grok|flux|imagen|qwen|minimax/i;
 export function modelFamily(model) {
     const name = String(model || '').trim();
     if (!name) return 'other';
@@ -135,6 +136,7 @@ export function modelFamily(model) {
     if (/banana/i.test(name) || /(^|[\/_-])(gemini|imagen)/i.test(name)) return 'nanobanana';
     if (/(^|[\/_-])grok/i.test(name)) return 'grok';
     if (/seedream|(^|[\/_-])doubao/i.test(name)) return 'seedream';
+    if (/(^|[\/_-])(minimax|h3-?image)/i.test(name)) return 'minimax';
     return 'other';
 }
 export function groupModelsByFamily(models = []) {

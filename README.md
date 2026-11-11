@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.24</b></a>
+  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.25</b></a>
   ·
   <a href="#使用说明">使用说明</a>
   ·
@@ -20,7 +20,7 @@
 
 ---
 
-PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个小图标，用的时候点开就能写提示词、拖参考图、出图。它可以接入 OpenAI（GPT Image）、Google Gemini（Nano Banana）、xAI Grok、豆包 Seedream 以及各种兼容这些接口的中转站。配好多个供应商以后，某一家报错或者排队，任务会自动换到下一家。
+PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个小图标，用的时候点开就能写提示词、拖参考图、出图。它可以接入 OpenAI（GPT Image）、Google Gemini（Nano Banana）、xAI Grok、豆包 Seedream、MiniMax H3-Image 以及各种兼容这些接口的中转站。配好多个供应商以后，某一家报错或者排队，任务会自动换到下一家。
 
 - **悬浮小窗**：拖到屏幕边缘就停靠成一条小标签，鼠标移过去展开，不占地方。
 - **多序列并行**：开几个序列（标签页）同时跑不同的任务，每个序列有自己的提示词、模型和参考图。
@@ -33,7 +33,7 @@ PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个�
 
 ## 下载安装
 
-1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.24-x64.exe`。
+1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.25-x64.exe`。
 2. 这是**便携版**，不用安装，双击就能运行。系统要求 Windows 10 / 11 64 位。
 3. 第一次运行会在 exe 旁边创建 `PicGenData` 文件夹，里面是你的供应商配置、历史图片和加密密钥用的环境。**换电脑或换位置时，把 exe 和 `PicGenData` 整个文件夹一起搬走**，配置和历史就都还在。
 4. Windows 可能提示"已保护你的电脑"（因为没有代码签名），点"更多信息 → 仍要运行"即可。
@@ -230,7 +230,7 @@ PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个�
 
 1. 用**笔刷**涂要改的区域，**橡皮擦**修边，滑块调笔刷大小。
 2. 在**修改要求**里写改成什么，例如"把杯身换成米白色哑光陶瓷"。
-3. **生成模型**按种类选（Nano Banana / GPT / Grok / Seedream），PicGen 会自动选择合适的蒙版发送方式，不需要额外设置。
+3. **生成模型**按种类选（Nano Banana / GPT / Grok / Seedream / MiniMax），PicGen 会自动选择合适的蒙版发送方式，不需要额外设置。
 4. 非 GPT 模型可以打开**严格保持涂抹区外不变**：结果会贴回原图，涂抹区外一个像素都不动（边缘可能有接缝）。
 
 **输出** 菜单可以把当前画布「输出到参考图」或「另存为」图片。
@@ -374,6 +374,11 @@ PicGen 按模型名判断协议和能力。请确认模型名和供应商文档�
 
 **我的图片和 Key 会被上传吗？**
 不会。PicGen 只请求你自己配置的接口地址；相似图分析用的是内置在软件里的本地模型。
+
+## 2.3.25 更新内容
+
+- **支持 MiniMax H3-Image 官方接口**：供应商地址填 `https://api.minimax.cn`，模型填 `MiniMax-H3-Image` 或 `MiniMax-H3-Image-Highspeed`（极速版）。PicGen 按 MiniMax 官方格式发送：比例与 1K / 2K / 4K 档位原生传给接口（比例可选 auto，由 MiniMax 按内容决定，支持 1:3～3:1），有参考图时自动走图片编辑接口，最多 16 张参考图；高级设置里可选 PNG / JPEG / WebP 输出和压缩质量。MiniMax 没有蒙版参数，图片工作台的局部编辑会用红色涂抹定位图。该接口不支持幂等，PicGen 只提交一次，最长等待 10 分钟。
+- **Grsai GPT Image 2.6 按最新文档适配**：普通版 gpt-image-2 / 2.5 / 2.6 直接发送比例（如 `16:9`，之前会被换成 2K/4K 像素值导致失败）；VIP、Flare、Sunburst 继续发送像素值；比例选 auto 时原样透传；画质超出模型支持范围时自动降到该模型最高档（如 2.6 Flare / Sunburst 最高 high），不再直接报错。
 
 ## 2.3.24 更新内容
 

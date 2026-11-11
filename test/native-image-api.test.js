@@ -79,7 +79,8 @@ test('builds Grsai GPT Image 2.5 request using vendor fields', () => {
         prompt: 'wide scene',
         images: ['data:image/png;base64,aGVsbG8='],
         aspectRatio: '2048x1152',
-        quality: 'max',
+        // 2.5 Flare tops out at high; max is clamped instead of sent and rejected.
+        quality: 'high',
         replyType: 'async'
     });
 });
@@ -189,7 +190,8 @@ test('supports Grsai GPT Image 2.6 as its own 2.5-generation family', () => {
         model: 'gpt-image-2.6',
         prompt: 'wide scene',
         images: [],
-        aspectRatio: '1280x720',
+        // Plain gpt-image-2.6 takes the ratio itself (pixel values only up to 1K).
+        aspectRatio: '16:9',
         quality: 'auto',
         replyType: 'json'
     });
@@ -2099,4 +2101,25 @@ test('discovers and persists selectable models without a preconfigured model', a
     assert.deepEqual(provider.discoveredModels.map(item => item.id), ['gpt-image-2', 'custom-provider-image']);
     assert.ok(provider.modelCapabilities['gpt-image-2'].supported_endpoint_types.includes('image-generation'));
     assert.ok(provider.modelCapabilities['custom-provider-image']);
+});
+
+test('Grsai GPT Image: plain models get ratios, Flare/Sunburst/VIP get pixels, quality clamps per model', () => {
+    const build = (model, extra = {}) => _test.buildGrsaiGptImageRequest({
+        provider: 'https://grsaiapi.com', model, prompt: 'p', ratio: '4:3', imageSize: '4K',
+        generationConfig: {}, resolveSize: _test.resolveOpenAIImageSize, ...extra
+    }).body;
+    for (const model of ['gpt-image-2', 'gpt-image-2.5', 'gpt-image-2.6']) {
+        assert.equal(grsaiGptImage.modelNeedsPixels(model), false, model);
+        assert.equal(build(model).aspectRatio, '4:3', model);
+        assert.equal(build(model, { generationConfig: { gptQuality: 'high' } }).quality, 'auto', model);
+    }
+    for (const model of ['gpt-image-2-vip', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst', 'gpt-image-2.6-flare', 'gpt-image-2.6-sunburst']) {
+        assert.equal(grsaiGptImage.modelNeedsPixels(model), true, model);
+        assert.equal(build(model).aspectRatio, '3264x2448', model);
+        assert.equal(build(model, { ratio: 'auto' }).aspectRatio, 'auto', model);
+    }
+    assert.equal(build('gpt-image-2.6-sunburst', { generationConfig: { gptQuality: 'xhigh' } }).quality, 'high');
+    assert.equal(build('gpt-image-2.6-flare', { generationConfig: { gptQuality: 'medium' } }).quality, 'medium');
+    assert.equal(build('gpt-image-2.5-sunburst', { generationConfig: { gptQuality: 'max' } }).quality, 'max');
+    assert.equal(build('gpt-image-2.6', { ratio: 'auto' }).aspectRatio, 'auto');
 });

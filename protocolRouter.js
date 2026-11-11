@@ -77,6 +77,7 @@ function inferProtocol(provider = {}, model = '') {
     }
     if (imageApiProfiles.isOpenAIImageModel(model)
         || imageApiProfiles.isXAIImageModel(model)
+        || imageApiProfiles.isMinimaxImageModel(model)
         || lowerModel.includes('seedream')) return PROTOCOLS.OPENAI_IMAGES;
     if (lowerProvider.includes('generativelanguage.googleapis.com')) return PROTOCOLS.GEMINI_NATIVE;
     if (advertised.length > 0) return advertised[0];
