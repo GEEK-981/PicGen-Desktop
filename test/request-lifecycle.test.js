@@ -86,6 +86,69 @@ test('result-body deadline preserves the no-resubmission outcome', async t => {
     assert.equal(submissions, 1);
 });
 
+test('a slow result body that keeps making progress is not cut off by the idle deadline', async t => {
+    let url;
+    url = await mock(t, (req, res) => {
+        req.resume();
+        if (req.method === 'POST') {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ data: [{ url: `${url}/image` }] }));
+            return;
+        }
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        let sent = 0;
+        const timer = setInterval(() => {
+            res.write('chunk');
+            if (++sent === 8) { clearInterval(timer); res.end(); }
+        }, 40);
+    });
+    // 整个正文约 320ms，远超 100ms 的空闲期限，但每 40ms 都有数据，不该被判超时。
+    const result = await generateImage(config(url), { downloadIdleTimeoutMs: 100, downloadRetryAttempts: 1 });
+    assert.equal(Buffer.from(result.base64, 'base64').toString(), 'chunk'.repeat(8));
+});
+
+function grsaiMock(t, onDownload) {
+    const counts = { submissions: 0, downloads: 0 };
+    let base;
+    return mock(t, (req, res) => {
+        req.resume();
+        if (req.url.endsWith('/draw/nano-banana')) {
+            counts.submissions++;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ code: 0, data: { id: 'grsai-job' } }));
+        } else if (req.url.endsWith('/draw/result')) {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ code: 0, data: { status: 'succeeded', results: [{ url: `${base}/file.png` }] } }));
+        } else {
+            counts.downloads++;
+            onDownload(res, counts.downloads);
+        }
+    }).then(url => { base = url; return { url, counts }; });
+}
+
+test('a Grsai result link keeps being retried within its validity window instead of failing after 3 tries', async t => {
+    const { url, counts } = await grsaiMock(t, (res, n) => {
+        if (n < 6) { res.writeHead(503); res.end(); return; }
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.end('final-image');
+    });
+    const result = await generateImage({ ...config(url), model: 'nano-banana-2', protocol: 'grsai-nano-banana' },
+        { grsaiPollIntervalMs: 1, downloadRetryDelayMs: 1, downloadRetryWindowMs: 5000 });
+    assert.equal(Buffer.from(result.base64, 'base64').toString(), 'final-image');
+    assert.equal(counts.submissions, 1);
+    assert.equal(counts.downloads, 6);
+});
+
+test('a Grsai download that outlasts its retry window keeps the result link and never resubmits', async t => {
+    const { url, counts } = await grsaiMock(t, res => { res.writeHead(503); res.end(); });
+    await assert.rejects(generateImage({ ...config(url), model: 'nano-banana-2', protocol: 'grsai-nano-banana' },
+        { grsaiPollIntervalMs: 1, downloadRetryDelayMs: 5, downloadRetryWindowMs: 120 }),
+        error => error.code === 'RESULT_DOWNLOAD_FAILED' && error.ambiguous && !error.retryable
+            && error.resultUrl === `${url}/file.png` && /已持续重试/.test(error.message));
+    assert.equal(counts.submissions, 1);
+    assert.ok(counts.downloads > 3, `expected more than 3 download attempts, got ${counts.downloads}`);
+});
+
 test('accepted asynchronous job is not resubmitted when its polling endpoint fails', async t => {
     let submissions = 0;
     let polls = 0;

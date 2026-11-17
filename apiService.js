@@ -11,7 +11,7 @@ const grsaiNanoBanana = require('./imageAdapters/grsaiNanoBanana');
 const grsaiGptImage = require('./imageAdapters/grsaiGptImage');
 const toapisImage = require('./imageAdapters/toapisImage');
 const minimaxImage = require('./imageAdapters/minimaxImage');
-const { throwIfAborted, createLinkedAbortController, delay, withRequestTimeout } = require('./requestLifecycle');
+const { abortError, throwIfAborted, createLinkedAbortController, delay, withRequestTimeout } = require('./requestLifecycle');
 
 // Relay stations sit behind slow TLS terminators; observed handshakes range from
 // 0.6s to 8.4s on the same host. Without connection reuse every request pays it
@@ -292,7 +292,14 @@ const API_CONFIG = {
     OPENAI_IMAGE_TIMEOUT: 240000, // 4分钟（根据供应商反馈3分钟内完成，留1分钟余量）
     GEMINI_IMAGE_TIMEOUT: 240000, // Gemini图片生成超时
     DOWNLOAD_RETRY_BASE_DELAY: 400, // 下载重试基础延迟（ms）
-    DOWNLOAD_MAX_RETRIES: 3 // 下载最大重试次数（从4降到3）
+    DOWNLOAD_RETRY_MAX_DELAY: 30000, // 退避上限：链接长期有效时重试间隔最多拉到 30 秒
+    DOWNLOAD_MAX_RETRIES: 3, // 下载最大重试次数（从4降到3）
+    // 单次下载：连续这么久一个字节都没收到才算卡住。原来是 60 秒「整包」期限，
+    // 4K 图经代理、多张并发时 60 秒传不完就被判 ETIMEDOUT，重试又从零开始。
+    DOWNLOAD_IDLE_TIMEOUT: 30000,
+    DOWNLOAD_TOTAL_TIMEOUT: 5 * 60 * 1000,
+    // Grsai 的结果链接 2 小时内可重复取回：下载失败后在这个窗口内持续退避重试，而不是 3 次就判失败。
+    GRSAI_RESULT_RETRY_WINDOW: 15 * 60 * 1000
 };
 
 const IMAGE_HOST_URL = 'https://imageproxy.zhongzhuan.chat/api/upload';
@@ -1471,32 +1478,27 @@ async function downloadImageAsBase64(url, callbacks = {}) {
     const maxAttempts = Math.max(1, Number(callbacks.downloadRetryAttempts) || API_CONFIG.DOWNLOAD_MAX_RETRIES);
     const configuredDelayMs = Number(callbacks.downloadRetryDelayMs);
     const baseDelayMs = Number.isFinite(configuredDelayMs) && configuredDelayMs >= 0 ? configuredDelayMs : API_CONFIG.DOWNLOAD_RETRY_BASE_DELAY;
-    const retryableCodes = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT']);
+    // 结果链接长期有效（如 Grsai 2 小时）时按时间窗口重试，不再受次数限制。
+    const retryWindowMs = Math.max(0, Number(callbacks.downloadRetryWindowMs) || 0);
+    const retryDeadline = retryWindowMs > 0 ? downloadStartTime + retryWindowMs : 0;
+    const totalTimeoutMs = Math.max(1, Number(callbacks.downloadTimeoutMs) || API_CONFIG.DOWNLOAD_TOTAL_TIMEOUT);
+    const idleTimeoutMs = Math.min(totalTimeoutMs, Math.max(1, Number(callbacks.downloadIdleTimeoutMs) || API_CONFIG.DOWNLOAD_IDLE_TIMEOUT));
     const host = (() => {
         try { return new URL(url).host; } catch { return 'result host'; }
     })();
+    const attemptLabel = attempt => retryDeadline ? `${attempt}` : `${attempt}/${maxAttempts}`;
     let lastError = null;
     let addressOverride = '';
     let triedPublicDns = false;
     let publicCandidates = [];
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    for (let attempt = 1; ; attempt += 1) {
         throwIfAborted(callbacks.signal);
         try {
-            const { buffer, contentType } = await withRequestTimeout(
-                callbacks.signal, Math.max(1, Number(callbacks.downloadTimeoutMs) || 60000), async signal => {
-                    const response = await fetchDownload(url, addressOverride, signal);
-                    if (!response.ok) {
-                        response.body?.destroy();
-                        const error = new Error(`下载图片失败: HTTP ${response.status}`);
-                        error.status = response.status;
-                        throw error;
-                    }
-                    return { buffer: await response.buffer(), contentType: response.headers.get('content-type') || 'image/png' };
-                });
+            const { buffer, contentType } = await readDownload(url, addressOverride, callbacks, { idleTimeoutMs, totalTimeoutMs });
             const downloadTime = Date.now() - downloadStartTime;
             const result = { base64: buffer.toString('base64'), mimeType: contentType };
-            console.log(`[Download] 成功: ${host}${addressOverride ? ` via ${addressOverride}` : ''}, 耗时${downloadTime}ms, 大小${(buffer.length / 1024).toFixed(2)}KB, 尝试${attempt}/${maxAttempts}`);
+            console.log(`[Download] 成功: ${host}${addressOverride ? ` via ${addressOverride}` : ''}, 耗时${downloadTime}ms, 大小${(buffer.length / 1024).toFixed(2)}KB, 尝试${attemptLabel(attempt)}`);
             emitProgress(callbacks, {
                 phase: 'downloaded',
                 message: 'Generated image downloaded',
@@ -1507,13 +1509,17 @@ async function downloadImageAsBase64(url, callbacks = {}) {
             throwIfAborted(callbacks.signal);
             if (error.name === 'AbortError') throw error;
             lastError = error;
-            if (shouldTryPublicDns(error) && !resolveProxyUrl(url)) {
+            // 已经收到响应头说明地址是通的，只是传得慢或中途断了，换 DNS 没意义。
+            if (!error.receivedHeaders && shouldTryPublicDns(error) && !resolveProxyUrl(url)) {
                 if (!triedPublicDns) {
                     triedPublicDns = true;
                     const hostname = (() => {
                         try { return new URL(url).hostname; } catch { return ''; }
                     })();
-                    publicCandidates = hostname ? await publicAddressesFor(hostname).catch(() => []) : [];
+                    // 主机本身就是 IP 时没有可被污染的解析，也别拿 IP 去查 DNS。
+                    publicCandidates = hostname && !net.isIP(hostname.replace(/^\[|\]$/g, ''))
+                        ? await publicAddressesFor(hostname).catch(() => [])
+                        : [];
                 }
                 // 逐个试公共 DNS 给出的地址，这几次不占下载重试次数。
                 const next = publicCandidates.shift();
@@ -1524,19 +1530,24 @@ async function downloadImageAsBase64(url, callbacks = {}) {
                     continue;
                 }
             }
-            const retryable = retryableCodes.has(error.code) || isRetryableStatus(error.status);
-            if (!retryable || attempt >= maxAttempts) break;
+            const retryable = DOWNLOAD_RETRYABLE_CODES.has(error.code) || isRetryableStatus(error.status);
+            const waitMs = Math.min(API_CONFIG.DOWNLOAD_RETRY_MAX_DELAY, baseDelayMs * (2 ** Math.min(attempt - 1, 16)));
+            const hasMore = retryDeadline ? Date.now() + waitMs < retryDeadline : attempt < maxAttempts;
+            console.warn(`[Download] ${host} 第 ${attemptLabel(attempt)} 次失败: ${describeDownloadError(error)}${retryable && hasMore ? `，${Math.round(waitMs / 1000)} 秒后重试` : ''}`);
+            if (!retryable || !hasMore) break;
             emitProgress(callbacks, {
                 phase: 'downloading',
-                message: `Retrying result download (${attempt + 1}/${maxAttempts})`,
+                message: `Retrying result download (${retryDeadline ? attempt + 1 : `${attempt + 1}/${maxAttempts}`})`,
                 displayProgress: 90
             });
-            await delay(baseDelayMs * (2 ** (attempt - 1)), callbacks.signal);
+            await delay(waitMs, callbacks.signal);
         }
     }
 
-    throw createApiError(
-        `图片已在供应商生成，但从 ${host} 下载失败：${lastError?.code || lastError?.message || '未知错误'}`,
+    const elapsedMinutes = Math.max(1, Math.round((Date.now() - downloadStartTime) / 60000));
+    const error = createApiError(
+        `图片已在供应商生成，但从 ${host} 下载失败：${describeDownloadError(lastError)}`
+            + (retryDeadline ? `（已持续重试约 ${elapsedMinutes} 分钟）` : ''),
         {
             retryable: false,
             ambiguous: true,
@@ -1544,6 +1555,86 @@ async function downloadImageAsBase64(url, callbacks = {}) {
             code: 'RESULT_DOWNLOAD_FAILED'
         }
     );
+    error.resultUrl = url;
+    throw error;
+}
+
+const DOWNLOAD_RETRYABLE_CODES = new Set([
+    'ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'EPIPE'
+]);
+
+function describeDownloadError(error) {
+    if (!error) return '未知错误';
+    if (error.localTimeout === 'idle') return `ETIMEDOUT（连续 ${Math.round(error.timeoutMs / 1000)} 秒没有收到数据）`;
+    if (error.localTimeout === 'total') return `ETIMEDOUT（超过 ${Math.round(error.timeoutMs / 1000)} 秒仍未下载完）`;
+    return error.code || error.message || '未知错误';
+}
+
+// 下载一次结果图。期限按「空闲」计：连接、响应头、正文任何一段连续 idleTimeoutMs 没进展才判超时；
+// totalTimeoutMs 只是兜底，防止极慢的涓流永远占着任务。
+async function readDownload(url, address, callbacks, { idleTimeoutMs, totalTimeoutMs }) {
+    const signal = callbacks.signal;
+    throwIfAborted(signal);
+    const controller = createLinkedAbortController(signal);
+    let expired = '';
+    let idleTimer = null;
+    let response = null;
+    const armIdle = () => {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => { expired = 'idle'; controller.abort(); }, idleTimeoutMs);
+    };
+    const totalTimer = setTimeout(() => { expired = 'total'; controller.abort(); }, totalTimeoutMs);
+    armIdle();
+    try {
+        response = await fetchDownload(url, address, controller.signal);
+        if (!response.ok) {
+            response.body?.destroy();
+            const error = new Error(`下载图片失败: HTTP ${response.status}`);
+            error.status = response.status;
+            throw error;
+        }
+        const expectedBytes = Number(response.headers.get('content-length')) || 0;
+        const chunks = [];
+        let received = 0;
+        let lastReportAt = Date.now();
+        armIdle();
+        for await (const chunk of response.body) {
+            chunks.push(chunk);
+            received += chunk.length;
+            armIdle();
+            if (Date.now() - lastReportAt >= 2000) {
+                lastReportAt = Date.now();
+                const mb = value => (value / 1048576).toFixed(1);
+                emitProgress(callbacks, {
+                    phase: 'downloading',
+                    message: expectedBytes
+                        ? `Downloading generated image (${mb(received)}/${mb(expectedBytes)} MB)`
+                        : `Downloading generated image (${mb(received)} MB)`,
+                    displayProgress: 90
+                });
+            }
+        }
+        if (expectedBytes && received < expectedBytes) {
+            throw Object.assign(new Error(`下载不完整: ${received}/${expectedBytes} 字节`), { code: 'ECONNRESET' });
+        }
+        return { buffer: Buffer.concat(chunks, received), contentType: response.headers.get('content-type') || 'image/png' };
+    } catch (error) {
+        if (signal?.aborted) throw abortError();
+        const failure = expired
+            ? Object.assign(new Error('Request timed out'), {
+                code: 'ETIMEDOUT',
+                localTimeout: expired,
+                timeoutMs: expired === 'idle' ? idleTimeoutMs : totalTimeoutMs
+            })
+            : error;
+        failure.receivedHeaders = !!response;
+        throw failure;
+    } finally {
+        clearTimeout(idleTimer);
+        clearTimeout(totalTimer);
+        controller.abort();
+        controller.dispose();
+    }
 }
 
 async function reversePrompt(config) {
@@ -2218,6 +2309,17 @@ async function generateImageRequest(config, callbacks = {}) {
             });
             controller = createLinkedAbortController(config.signal);
             const requestCallbacks = { ...callbacks, signal: controller.signal };
+            // Grsai 的结果链接 2 小时内有效：拿到链接后停掉「生成等待」计时器，下载只受用户取消影响，
+            // 不再和剩余的生成超时抢时间，并在有效期内按时间窗口耐心重试。
+            const grsaiResultCallbacks = () => {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+                return {
+                    ...callbacks,
+                    signal: config.signal,
+                    downloadRetryWindowMs: callbacks.downloadRetryWindowMs ?? API_CONFIG.GRSAI_RESULT_RETRY_WINDOW
+                };
+            };
             timeoutId = setTimeout(() => {
                 didTimeout = true;
                 controller.abort();
@@ -2301,7 +2403,7 @@ async function generateImageRequest(config, callbacks = {}) {
                     if (directUrl) {
                         const downloaded = directUrl.startsWith('data:image/')
                             ? parseDataUrl(directUrl, null)
-                            : await downloadImageAsBase64(directUrl, requestCallbacks);
+                            : await downloadImageAsBase64(directUrl, grsaiResultCallbacks());
                         clearTimeout(timeoutId);
                         return downloaded;
                     }
@@ -2324,7 +2426,7 @@ async function generateImageRequest(config, callbacks = {}) {
                         const resultUrl = grsaiGptImage.extractResultUrl(pollData);
                         emitProgress(callbacks, { phase: 'polling', providerKind, displayProgress: resultUrl ? 90 : 60, message: resultUrl ? 'Grsai image ready' : 'Waiting for Grsai image' });
                         if (resultUrl) {
-                            const downloaded = resultUrl.startsWith('data:image/') ? parseDataUrl(resultUrl, null) : await downloadImageAsBase64(resultUrl, requestCallbacks);
+                            const downloaded = resultUrl.startsWith('data:image/') ? parseDataUrl(resultUrl, null) : await downloadImageAsBase64(resultUrl, grsaiResultCallbacks());
                             clearTimeout(timeoutId);
                             return downloaded;
                         }
@@ -2374,7 +2476,7 @@ async function generateImageRequest(config, callbacks = {}) {
                             if (!resultUrl) throw new Error(`Grsai 任务已完成但没有图片 URL: ${JSON.stringify(pollData).slice(0, 240)}`);
                             const downloaded = resultUrl.startsWith('data:image/')
                                 ? parseDataUrl(resultUrl, null)
-                                : await downloadImageAsBase64(resultUrl, requestCallbacks);
+                                : await downloadImageAsBase64(resultUrl, grsaiResultCallbacks());
                             performanceLog.phases.complete = Date.now() - apiCallStartTime;
                             clearTimeout(timeoutId);
                             return downloaded;

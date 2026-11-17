@@ -464,6 +464,8 @@ class TaskQueue {
             details: {
                 ratio: task.ratio,
                 imageSize: task.imageSize,
+                // 结果图已在供应商生成但没下载下来时留下原链接（Grsai 2 小时内可再取回）。
+                ...(error?.resultUrl ? { resultUrl: error.resultUrl } : {}),
                 attempts: task.attempts.map(attempt => ({
                     index: attempt.index,
                     providerId: attempt.providerId,

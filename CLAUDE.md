@@ -125,7 +125,7 @@ node scripts/native-interaction-smoke.js                   # Verify dock/preview
 - Unified interface for multiple image generation protocols
 - Connection pooling with keep-alive agents (avoids TLS handshake on every request)
 - Proxy support: `direct`, `system` (reads environment), or `custom` (explicit proxy URL)
-- Download retry with exponential backoff (default 3 attempts)
+- Download retry with exponential backoff (default 3 attempts). Each attempt times out on **idle** (30 s with no bytes), not on total time (5 min cap), so a large 4K body that keeps flowing is never cut off. Grsai result links stay valid ~2 h, so Grsai downloads run outside the generation timer (only user cancel stops them) and retry within a 15-min window (backoff capped at 30 s); a final failure keeps the link as `error.resultUrl` → `details.resultUrl` in the error log
 - Prompt metadata embedding into generated images (iTXt chunks for PNG, XMP for JPEG/WebP)
 
 **Image API Profiles** (`imageApiProfiles.js`):
