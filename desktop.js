@@ -2579,6 +2579,13 @@ if (typeof window.addEventListener === 'function') {
     }, true);
 }
 
+const DEFAULT_OUTPUT_FORMAT_OPTIONS = [
+    { value: '', label: '默认' },
+    { value: 'image/png', label: 'PNG' },
+    { value: 'image/jpeg', label: 'JPEG' },
+    { value: 'image/webp', label: 'WebP' }
+];
+
 function updateModelSpecificAdvancedOptions(profile, advancedInput = {}) {
     const advanced = createDefaultAdvancedSettings(advancedInput);
     if (profile.qualityOptions) {
@@ -2586,6 +2593,9 @@ function updateModelSpecificAdvancedOptions(profile, advancedInput = {}) {
     }
     if (profile.backgroundOptions) {
         renderSelectOptions(el.gptBackgroundSelect, profile.backgroundOptions, advanced.gptBackground);
+    }
+    if (el.outputMimeSelect && profile.controls?.outputFormat) {
+        renderSelectOptions(el.outputMimeSelect, profile.outputFormatOptions || DEFAULT_OUTPUT_FORMAT_OPTIONS, advanced.outputMimeType);
     }
 }
 

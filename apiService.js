@@ -11,6 +11,8 @@ const grsaiNanoBanana = require('./imageAdapters/grsaiNanoBanana');
 const grsaiGptImage = require('./imageAdapters/grsaiGptImage');
 const toapisImage = require('./imageAdapters/toapisImage');
 const minimaxImage = require('./imageAdapters/minimaxImage');
+const doubaoSeedream = require('./imageAdapters/doubaoSeedream');
+const photontideImage = require('./imageAdapters/photontideImage');
 const { abortError, throwIfAborted, createLinkedAbortController, delay, withRequestTimeout } = require('./requestLifecycle');
 
 // Relay stations sit behind slow TLS terminators; observed handshakes range from
@@ -419,12 +421,11 @@ function isXAIImagineNativeModel(model = '') {
 }
 
 function isDoubaoSeedreamModel(model = '') {
-    return normalizeModelKeyword(model).includes('seedream');
+    return doubaoSeedream.isSeedreamModel(model);
 }
 
 function isDoubaoSeedream5Model(model = '') {
-    const normalized = normalizeModelKeyword(model).replace(/\./g, '');
-    return normalized.includes('seedream50') || normalized.includes('seedream5');
+    return doubaoSeedream.isSeedream5Family(model);
 }
 
 function parseImageSize(value) {
@@ -832,50 +833,11 @@ function chatMode(provider, model) {
 }
 
 function normalizeDoubaoSeedreamTier(value, model = '') {
-    const tier = String(value || '').trim().toUpperCase();
-    const modelLower = String(model || '').toLowerCase();
-    const isSeedream5 = isDoubaoSeedream5Model(model);
-    const isPro = modelLower.includes('pro');
-    let supported;
-    let fallback;
-
-    if (isSeedream5 && isPro) {
-        supported = ['1K', '2K'];
-        fallback = '1K';
-    } else if (isSeedream5) {
-        supported = ['2K', '3K', '4K'];
-        fallback = '2K';
-    } else if (modelLower.includes('seedream-4-5')) {
-        supported = ['2K', '4K'];
-        fallback = '2K';
-    } else {
-        supported = ['1K', '2K', '4K'];
-        fallback = '1K';
-    }
-
-    if (supported.includes(tier)) return tier;
-    if ((tier === '512' || tier === '0.5K') && supported.includes('1K')) return '1K';
-    if (tier === '1K' && supported.includes('2K')) return '2K';
-    if ((tier === '3K' || tier === '4K') && supported.includes('2K') && !supported.includes(tier)) return '2K';
-    return fallback;
+    return doubaoSeedream.normalizeTier(value, model);
 }
 
 function resolveDoubaoSeedreamSize(ratio = '', imageSize = '1K', model = '', generationConfig = {}) {
-    const ratioSize = normalizeImageSize(ratio);
-    if (parseImageSize(ratioSize)) return ratioSize;
-
-    if (String(ratio || '').trim().toLowerCase() === 'custom') {
-        const width = Number(generationConfig.gptImageWidth);
-        const height = Number(generationConfig.gptImageHeight);
-        if (Number.isInteger(width) && Number.isInteger(height) && width > 0 && height > 0) {
-            return `${width}x${height}`;
-        }
-    }
-
-    const explicitImageSize = normalizeImageSize(imageSize);
-    if (parseImageSize(explicitImageSize)) return explicitImageSize;
-
-    return normalizeDoubaoSeedreamTier(imageSize, model);
+    return doubaoSeedream.resolveSize({ ratio, imageSize, model, generationConfig });
 }
 
 function greatestCommonDivisor(left, right) {
@@ -919,24 +881,7 @@ function withAspectRatioInstruction(prompt = '', ratio = '', generationConfig = 
 }
 
 function withDoubaoSeedreamAspectRatio(prompt = '', ratio = '', size = '') {
-    const ratioText = String(ratio || '').trim();
-    if (!ratioText || ratioText.toLowerCase() === 'custom' || parseImageSize(ratioText) || parseImageSize(size)) {
-        return String(prompt || '');
-    }
-    if (!/^\d+\s*:\s*\d+$/.test(ratioText)) return String(prompt || '');
-    if (String(prompt || '').includes(ratioText)) return String(prompt || '');
-    return `${prompt}，宽高比为${ratioText}`;
-}
-
-function doubaoSeedreamOutputFormat(generationConfig = {}) {
-    const mimeType = String(generationConfig.outputMimeType || '').toLowerCase();
-    if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return 'jpeg';
-    return 'png';
-}
-
-function doubaoSeedreamReferenceImage(ref = {}) {
-    const mimeType = String(ref.mimeType || 'image/png').split(';')[0].toLowerCase();
-    return `data:${mimeType};base64,${ref.base64 || ''}`;
+    return doubaoSeedream.withSeedreamAspectRatio(prompt, ratio, size);
 }
 
 function openAIOutputFormat(generationConfig = {}) {
@@ -1883,6 +1828,186 @@ async function generateToapisImage(config, callbacks = {}) {
     }
 }
 
+// 光脉（Photontide）同步图片生成入口：参考图必须先转为公网 HTTP(S) URL（Seedream 渠道传 Data URI
+// 会直接返回 400 `image must be a public HTTP URL`，且光脉自身未实现 /v1/files 上传接口）。
+// 图床上传在付费生成前执行，可安全重试；一旦 POST /v1/images/generations 发出则绝不自动重提。
+async function uploadPhotontideReference(ref, callbacks = {}, signal) {
+    if (typeof ref === 'string' && /^https?:\/\//i.test(ref.trim())) return ref.trim();
+    if (ref?.url && /^https?:\/\//i.test(String(ref.url).trim())) return String(ref.url).trim();
+    if (typeof callbacks.uploadReference === 'function') {
+        const uploaded = await callbacks.uploadReference(ref, { signal });
+        const url = typeof uploaded === 'string' ? uploaded : uploaded?.url;
+        if (!url || !/^https?:\/\//i.test(url)) throw new Error('光脉参考图上传返回地址无效');
+        return url;
+    }
+    const base64 = String(ref?.base64 || '').replace(/^data:[^,]+,/, '');
+    const mimeType = String(ref?.mimeType || 'image/png').split(';')[0].trim().toLowerCase() || 'image/png';
+    let lastError = null;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+        throwIfAborted(signal);
+        try {
+            const { url } = await uploadToImageHost(base64, mimeType, { ...callbacks, signal });
+            return url;
+        } catch (error) {
+            throwIfAborted(signal);
+            lastError = error;
+            if (attempt < 2) await delay(800 * attempt, signal);
+        }
+    }
+    throw createApiError(`光脉参考图上传失败: ${lastError?.message || '未知错误'}`, {
+        retryable: true,
+        ambiguous: false,
+        countsAsFailure: false
+    });
+}
+
+async function generatePhotontideImage(config, callbacks = {}) {
+    const {
+        provider,
+        apiKey,
+        model,
+        prompt = '',
+        ratio = '1:1',
+        imageSize = '1K',
+        referenceImages = [],
+        generationConfig = {}
+    } = config;
+    const layerDecomposition = !!generationConfig.layerDecomposition;
+    if (!provider || !apiKey || !model || (!prompt && !layerDecomposition)) {
+        throw new Error('缺少必要的配置参数');
+    }
+
+    const providerKind = photontideImage.PROVIDER_KIND;
+    const maxRefs = photontideImage.maxReferencesFor(model);
+    const usableRefs = (Array.isArray(referenceImages) ? referenceImages : []).filter(
+        ref => (typeof ref === 'string' && ref.trim()) || ref?.base64 || ref?.url
+    );
+    if (usableRefs.length > maxRefs) {
+        throw createApiError(`光脉模型 ${model} 最多支持 ${maxRefs} 张参考图（当前 ${usableRefs.length} 张）`, {
+            retryable: false,
+            ambiguous: false,
+            countsAsFailure: false
+        });
+    }
+
+    const controller = createLinkedAbortController(config.signal);
+    const signal = controller.signal;
+    let didTimeout = false;
+    let submitted = false;
+    const timeoutMs = API_CONFIG.OPENAI_IMAGE_TIMEOUT;
+    let timeoutId = null;
+
+    try {
+        let referenceUrls = [];
+        if (usableRefs.length > 0) {
+            emitProgress(callbacks, {
+                phase: 'uploading',
+                providerKind,
+                displayProgress: 3,
+                message: `Uploading ${usableRefs.length} reference image(s)`
+            });
+            referenceUrls = await Promise.all(usableRefs.map(ref => uploadPhotontideReference(ref, callbacks, signal)));
+        }
+
+        const effectivePrompt = layerDecomposition
+            ? String(prompt || '').trim()
+            : withAspectRatioInstruction(prompt, ratio, generationConfig, imageSize);
+        const request = photontideImage.buildRequest({
+            model,
+            prompt,
+            effectivePrompt,
+            ratio,
+            imageSize,
+            referenceUrls,
+            generationConfig,
+            resolveOpenAISize: resolveOpenAIImageSize,
+            resolveGeminiRatio: resolveGeminiAspectRatio
+        });
+        const fetchUrl = photontideImage.endpointUrl(provider, request.endpoint);
+        console.log(`[apiService] mode=photontide (${request.family}), model=${model}, size=${request.size}, keys=${Object.keys(request.body).join(',')}, refs=${referenceUrls.length}`);
+
+        emitProgress(callbacks, {
+            phase: 'requesting',
+            providerKind,
+            stream: false,
+            displayProgress: 5,
+            message: 'Submitting Photontide image request'
+        });
+
+        timeoutId = setTimeout(() => {
+            didTimeout = true;
+            controller.abort();
+        }, timeoutMs);
+        submitted = true;
+
+        const startedAt = Date.now();
+        const response = await fetch(fetchUrl, {
+            method: 'POST',
+            signal,
+            agent: agentFor(fetchUrl),
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                Authorization: `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(request.body)
+        });
+        const { text, data } = await readJsonBody(response);
+        console.log(`[apiService] Photontide 收到响应: status=${response.status}, 耗时${Date.now() - startedAt}ms`);
+
+        if (!response.ok) {
+            const isHtml = text.trimStart().startsWith('<');
+            const detail = isHtml
+                ? `${response.status} ${response.statusText || 'HTTP Error'}`
+                : `${response.status} - ${photontideImage.errorMessage(data) || text.slice(0, 220)}`;
+            throw createApiError(`API 请求失败: ${detail}`, {
+                status: response.status,
+                retryAfter: response.headers.get('retry-after') || '',
+                retryable: isRetryableStatus(response.status),
+                ambiguous: false,
+                countsAsFailure: response.status !== 400 && response.status !== 401 && response.status !== 403
+            });
+        }
+
+        emitProgress(callbacks, {
+            phase: 'response_received',
+            providerKind,
+            stream: false,
+            displayProgress: 80,
+            message: 'Image response received'
+        });
+
+        clearTimeout(timeoutId);
+        timeoutId = null;
+        return await parseJsonResponse(data, false, { ...callbacks, signal: config.signal });
+    } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId);
+        const isAbortError = error?.name === 'AbortError' || signal.aborted;
+        let normalizedError = error instanceof Error ? error : new Error(String(error));
+        if (isAbortError && didTimeout) {
+            normalizedError = createApiError(
+                `本地等待超时：${Math.round(timeoutMs / 1000)} 秒内没有收到光脉图片生成响应；结果状态未知，PicGen 不会自动重复提交`,
+                { retryable: false, ambiguous: true, countsAsFailure: true, code: 'OUTCOME_UNCERTAIN' }
+            );
+        } else if (isAbortError) {
+            normalizedError.name = 'AbortError';
+            normalizedError.retryable = false;
+            normalizedError.ambiguous = false;
+            normalizedError.countsAsFailure = false;
+        } else if (normalizedError.retryable == null) {
+            const safeNetworkFailure = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED'].includes(error?.code);
+            normalizedError.retryable = safeNetworkFailure && !submitted;
+            normalizedError.ambiguous = submitted && !safeNetworkFailure && !!error?.code;
+            normalizedError.countsAsFailure = !submitted ? false : true;
+        }
+        throw normalizedError;
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+        controller.abort();
+        controller.dispose?.();
+    }
+}
+
 /**
  * 服务端生成图片 — 支持全部 Gemini API 参数
  * @param {Object} config
@@ -1913,7 +2038,7 @@ async function generateImageRequest(config, callbacks = {}) {
         phases: {}
     };
 
-    if (!provider || !apiKey || !model || !prompt) {
+    if (!provider || !apiKey || !model || (!prompt && !generationConfig?.layerDecomposition)) {
         throw new Error('缺少必要的配置参数');
     }
 
@@ -1931,6 +2056,7 @@ async function generateImageRequest(config, callbacks = {}) {
         ? inferProtocol({ baseUrl: provider }, model)
         : requestedProtocol;
     if (toapisImage.shouldUse(provider, model, resolvedProtocol)) return generateToapisImage(config, callbacks);
+    if (photontideImage.shouldUse(provider, model, resolvedProtocol)) return generatePhotontideImage(config, callbacks);
     const useGrsaiNanoBanana = resolvedProtocol === PROTOCOLS.GRSAI_NANO_BANANA
         || grsaiNanoBanana.shouldUse(provider, model, resolvedProtocol);
     const useGrsaiGptImage = grsaiGptImage.shouldUse(provider, model, resolvedProtocol);
@@ -2086,40 +2212,18 @@ async function generateImageRequest(config, callbacks = {}) {
         config._minimaxEndpoint = minimaxRequest.endpoint;
         config._minimaxSize = requestBody.size || [requestBody.aspect_ratio, requestBody.area].filter(Boolean).join(' ') || 'auto';
     } else if (isDoubaoSeedream && useOpenAIImages) {
-        const seedreamSize = resolveDoubaoSeedreamSize(ratio, imageSize, model, generationConfig);
-        const seedreamPrompt = withDoubaoSeedreamAspectRatio(effectivePrompt, ratio, seedreamSize);
-        requestBody = {
+        const seedreamRequest = doubaoSeedream.buildRequest({
             model,
-            prompt: seedreamPrompt,
-            size: seedreamSize,
-            response_format: generationConfig.responseFormat || generationConfig.seedreamResponseFormat || 'url',
-            stream: false,
-            watermark: generationConfig.watermark != null ? !!generationConfig.watermark : false
-        };
-
-        if (isDoubaoSeedream5Model(model)) {
-            requestBody.output_format = doubaoSeedreamOutputFormat(generationConfig);
-        }
-
-        if (hasRefs) {
-            const images = referenceImages.map(doubaoSeedreamReferenceImage);
-            requestBody.image = images.length === 1 ? images[0] : images;
-        }
-
-        if (generationConfig.sequentialImageGeneration) {
-            requestBody.sequential_image_generation = generationConfig.sequentialImageGeneration;
-        }
-        if (generationConfig.maxImages != null || generationConfig.seedreamMaxImages != null) {
-            const maxImages = parseInt(generationConfig.maxImages ?? generationConfig.seedreamMaxImages, 10);
-            if (Number.isFinite(maxImages) && maxImages > 0) {
-                requestBody.sequential_image_generation_options = { max_images: maxImages };
-            }
-        }
-        if (generationConfig.googleSearch || generationConfig.webSearch) {
-            requestBody.tools = [{ type: 'web_search' }];
-        }
-
-        config._doubaoSeedreamSize = seedreamSize;
+            prompt,
+            effectivePrompt,
+            ratio,
+            imageSize,
+            referenceImages,
+            generationConfig,
+            includeStream: true
+        });
+        requestBody = seedreamRequest.body;
+        config._doubaoSeedreamSize = seedreamRequest.size;
     } else {
         // ── GPT / OpenAI 风格格式 ──
         const isGeminiImageProxy = modelLower.includes('gemini') && modelLower.includes('image');
@@ -2886,6 +2990,9 @@ module.exports = {
         buildGrsaiGptImageRequest: grsaiGptImage.buildGenerateRequest,
         buildToapisImageBody: toapisImage.buildGenerateBody,
         generateToapisImage,
+        buildDoubaoSeedreamRequest: doubaoSeedream.buildRequest,
+        buildPhotontideImageRequest: photontideImage.buildRequest,
+        generatePhotontideImage,
         promptAspectRatio,
         withAspectRatioInstruction,
         createApiError,

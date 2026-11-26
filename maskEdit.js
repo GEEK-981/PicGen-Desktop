@@ -17,10 +17,16 @@ async function generateMaskedImage(config, callbacks, generate) {
     const sourcePng = await source.png().toBuffer();
     const rawProtocol = normalizeProtocol(config.protocol);
     const protocol = rawProtocol === PROTOCOLS.AUTO ? inferProtocol({ baseUrl: config.provider }, config.model) : rawProtocol;
-    // ToAPIs 只有部分 GPT 模型（gpt-image-2-official、2.6 official）收 mask_url，其余走涂抹定位图
+    // ToAPIs 只有部分 GPT 模型（gpt-image-2-official、2.6 official）收 mask_url，其余走涂抹定位图；
+    // 光脉统一走 /v1/images/generations JSON，没有蒙版参数，一律走红色涂抹定位图。
     const toapis = require('./imageAdapters/toapisImage');
+    const photontide = require('./imageAdapters/photontideImage');
     const toapisWithoutMask = toapis.shouldUse(config.provider, config.model, protocol) && !toapis.modelRules(config.model).mask;
-    const nativeMask = protocol === PROTOCOLS.OPENAI_IMAGES && !/gemini|banana|seedream|grok|flux|minimax|h3-?image/i.test(config.model) && !toapisWithoutMask;
+    const photontideWithoutMask = photontide.shouldUse(config.provider, config.model, protocol) && !photontide.supportsMask(config.model);
+    const nativeMask = protocol === PROTOCOLS.OPENAI_IMAGES
+        && !/gemini|banana|seedream|grok|flux|minimax|h3-?image|qwen/i.test(config.model)
+        && !toapisWithoutMask
+        && !photontideWithoutMask;
     // 第 1 张是被编辑的原图，后面原样带上其他参考图（标注图、比例版面等）
     const extras = config.referenceImages.slice(1).filter(ref => ref?.base64);
     const refs = [{ base64: sourcePng.toString('base64'), mimeType: 'image/png' }, ...extras];

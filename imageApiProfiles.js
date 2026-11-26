@@ -18,6 +18,12 @@
     const OPENAI_IMAGE2_RESOLUTIONS = ['1K', '2K', '4K', 'custom'];
     // MiniMax H3-Image accepts any X:Y between 1:3 and 3:1; auto lets prompt enhancement pick.
     const MINIMAX_RATIOS = ['auto', '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '1:2', '2:1', '21:9', '9:21', '1:3', '3:1'];
+    // Doubao Seedream supports aspect ratios within 1:16..16:1.
+    const SEEDREAM_RATIOS = [
+        '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4',
+        '9:16', '16:9', '21:9', '9:21', '1:2', '2:1',
+        '1:3', '3:1', '1:4', '4:1', '1:8', '8:1'
+    ];
 
     // GPT Image 2.5 (Sunburst / Flare) uses the same Image API size envelope
     // as GPT Image 2, while adding xhigh and max quality tiers.
@@ -32,6 +38,7 @@
         '512': 512,
         '0.5K': 512,
         '1K': 1024,
+        '1.5K': 1536,
         '2K': 2048,
         '3K': 3072,
         '4K': 4096
@@ -127,7 +134,8 @@
         openai: ['gptimage', 'dalle'],
         gemini: ['gemini', 'nanobanana'],
         xai: ['grok'],
-        minimax: ['minimax']
+        minimax: ['minimax'],
+        seedream: ['seedream', 'doubaoseedream', 'dolaseedream', 'lumiseedream']
     };
 
     function belongsToOtherVendor(normalized, vendor) {
@@ -152,6 +160,76 @@
     function isMinimaxImageModel(model = '') {
         const normalized = normalizeModelKeyword(model);
         return normalized.startsWith('minimaxh3image') || normalized === 'h3image' || normalized === 'h3imagehighspeed';
+    }
+
+    function seedreamCompactKey(model = '') {
+        return String(model || '').trim().toLowerCase().replace(/^.*\//, '').replace(/[\s_.-]+/g, '');
+    }
+
+    function isSeedreamImageModel(model = '') {
+        const key = seedreamCompactKey(model);
+        if (belongsToOtherVendor(normalizeModelKeyword(model), 'seedream')) return false;
+        return key.includes('seedream');
+    }
+
+    function seedreamImageFamily(model = '') {
+        const key = seedreamCompactKey(model);
+        if (!key.includes('seedream')) return '';
+        if (key.includes('seedream55')) return 'seedream-5.5';
+        if ((key.includes('seedream50') || key.includes('seedream5')) && key.includes('pro')) return 'seedream-5.0-pro';
+        if (key.includes('seedream50') || key.includes('seedream5')) return 'seedream-5.0';
+        if (key.includes('seedream45')) return 'seedream-4.5';
+        return 'seedream-4.0';
+    }
+
+    function isSeedream55Model(model = '') {
+        return seedreamImageFamily(model) === 'seedream-5.5';
+    }
+
+    function seedreamModelCapabilities(model = '') {
+        const family = seedreamImageFamily(model) || 'seedream-4.0';
+        if (family === 'seedream-5.5' || family === 'seedream-5.0-pro') {
+            return {
+                family,
+                ratios: SEEDREAM_RATIOS,
+                imageSizes: ['1K', '1.5K', '2K', 'custom'],
+                maxReferences: 10,
+                supportsOutputFormat: true,
+                supportsBackground: true,
+                supportsWebSearch: false
+            };
+        }
+        if (family === 'seedream-5.0') {
+            return {
+                family,
+                ratios: SEEDREAM_RATIOS,
+                imageSizes: ['2K', '3K', '4K', 'custom'],
+                maxReferences: 14,
+                supportsOutputFormat: true,
+                supportsBackground: false,
+                supportsWebSearch: true
+            };
+        }
+        if (family === 'seedream-4.5') {
+            return {
+                family,
+                ratios: SEEDREAM_RATIOS,
+                imageSizes: ['2K', '4K', 'custom'],
+                maxReferences: 14,
+                supportsOutputFormat: false,
+                supportsBackground: false,
+                supportsWebSearch: false
+            };
+        }
+        return {
+            family: 'seedream-4.0',
+            ratios: SEEDREAM_RATIOS,
+            imageSizes: ['1K', '2K', '4K', 'custom'],
+            maxReferences: 14,
+            supportsOutputFormat: false,
+            supportsBackground: false,
+            supportsWebSearch: false
+        };
     }
 
     function isXAIImagineNativeModel(model = '') {
@@ -222,6 +300,7 @@
         if (isGeminiImageModel(model)) return 'gemini';
         if (isXAIImageModel(model)) return 'xai';
         if (isMinimaxImageModel(model)) return 'minimax';
+        if (isSeedreamImageModel(model)) return 'seedream';
         return 'legacy';
     }
 
@@ -376,6 +455,36 @@
             };
         }
 
+        if (apiKind === 'seedream') {
+            const capabilities = seedreamModelCapabilities(model);
+            return {
+                apiKind,
+                family: capabilities.family,
+                dimensionLabel: '比例',
+                dimensionOptions: labelOptions(capabilities.ratios),
+                imageSizeOptions: labelOptions(capabilities.imageSizes),
+                countOptions: labelOptions(COUNT_OPTIONS),
+                maxReferences: capabilities.maxReferences,
+                controls: {
+                    outputFormat: capabilities.supportsOutputFormat,
+                    background: capabilities.supportsBackground,
+                    customSize: true,
+                    responseFormat: true,
+                    googleSearch: capabilities.supportsWebSearch
+                },
+                backgroundOptions: capabilities.supportsBackground
+                    ? labelOptions(['auto', 'opaque', 'transparent'])
+                    : undefined,
+                outputFormatOptions: capabilities.supportsOutputFormat
+                    ? [
+                        { value: '', label: '默认' },
+                        { value: 'image/png', label: 'PNG' },
+                        { value: 'image/jpeg', label: 'JPEG' }
+                    ]
+                    : undefined
+            };
+        }
+
         if (apiKind === 'openai') {
             let sizes = OPENAI_GPT_IMAGE_SIZES;
             if (family === 'gpt-image-2' || isGptImage25) sizes = OPENAI_IMAGE2_SIZES;
@@ -438,6 +547,7 @@
         GEMINI_STANDARD_RATIOS,
         XAI_RATIOS,
         MINIMAX_RATIOS,
+        SEEDREAM_RATIOS,
         OPENAI_GPT_IMAGE_SIZES,
         OPENAI_IMAGE2_RATIOS,
         OPENAI_IMAGE25_RATIOS,
@@ -456,6 +566,10 @@
         isXAIImagineNativeModel,
         isXAIImagineImage2Model,
         isMinimaxImageModel,
+        isSeedreamImageModel,
+        seedreamImageFamily,
+        isSeedream55Model,
+        seedreamModelCapabilities,
         isOpenAIGptImageModel,
         isOpenAIDallEModel,
         isOpenAIImageModel,

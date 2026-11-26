@@ -44,17 +44,38 @@
         if (profile.controls.compression && advanced.imageCompression !== '' && advanced.outputMimeType) {
             config.imageCompression = parseInt(advanced.imageCompression, 10);
         }
+        if (kind === 'openai' || profile.controls.customSize) {
+            if (advanced.gptImageWidth !== '') config.gptImageWidth = parseInt(advanced.gptImageWidth, 10);
+            if (advanced.gptImageHeight !== '') config.gptImageHeight = parseInt(advanced.gptImageHeight, 10);
+        }
 
         if (kind === 'openai') {
             if (advanced.gptQuality) config.gptQuality = advanced.gptQuality;
             if (advanced.gptBackground) config.gptBackground = advanced.gptBackground;
-            if (advanced.gptImageWidth !== '') config.gptImageWidth = parseInt(advanced.gptImageWidth, 10);
-            if (advanced.gptImageHeight !== '') config.gptImageHeight = parseInt(advanced.gptImageHeight, 10);
             if (advanced.openAIModeration) config.moderation = advanced.openAIModeration;
             if (advanced.nativeResponseFormat) config.responseFormat = advanced.nativeResponseFormat;
             if (advanced.openAIStyle) config.style = advanced.openAIStyle;
             if (advanced.inputFidelity) config.inputFidelity = advanced.inputFidelity;
             if (advanced.apiUser) config.user = advanced.apiUser;
+        }
+
+        if (kind === 'seedream') {
+            const raw = sequence.advanced && typeof sequence.advanced === 'object' ? sequence.advanced : {};
+            if (profile.controls.background && advanced.gptBackground) config.gptBackground = advanced.gptBackground;
+            if (profile.controls.responseFormat && advanced.nativeResponseFormat) {
+                config.responseFormat = advanced.nativeResponseFormat;
+            }
+            if (profile.controls.googleSearch && advanced.googleSearch) config.googleSearch = true;
+            if (raw.watermark != null) config.watermark = !!raw.watermark;
+            if (raw.layerDecomposition) config.layerDecomposition = true;
+            if (raw.layerMaxImages != null && raw.layerMaxImages !== '') {
+                config.layerMaxImages = parseInt(raw.layerMaxImages, 10);
+            }
+            if (raw.layerTextRecognition != null) config.layerTextRecognition = !!raw.layerTextRecognition;
+            if (raw.layerSize) config.layerSize = String(raw.layerSize);
+            if (raw.optimizePromptMode) config.optimizePromptMode = String(raw.optimizePromptMode);
+            if (raw.sequentialImageGeneration) config.sequentialImageGeneration = String(raw.sequentialImageGeneration);
+            if (raw.maxImages != null && raw.maxImages !== '') config.maxImages = parseInt(raw.maxImages, 10);
         }
 
         if (kind === 'gemini') {

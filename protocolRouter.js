@@ -1,5 +1,6 @@
 const imageApiProfiles = require('./imageApiProfiles');
 const grsaiNanoBanana = require('./imageAdapters/grsaiNanoBanana');
+const photontideImage = require('./imageAdapters/photontideImage');
 
 const PROTOCOLS = Object.freeze({
     AUTO: 'auto',
@@ -70,6 +71,9 @@ function inferProtocol(provider = {}, model = '') {
     if (configured !== PROTOCOLS.AUTO) return configured;
     const advertised = advertisedProtocols(provider, model);
     if (grsaiNanoBanana.shouldUse(lowerProvider, model, configured)) return PROTOCOLS.GRSAI_NANO_BANANA;
+    if (photontideImage.isPhotontideProvider(lowerProvider) && /^nano[-_ ]?banana/i.test(String(model || '').trim())) {
+        return PROTOCOLS.OPENAI_IMAGES;
+    }
     if (lowerModel.includes('(按次)') && advertised.includes(PROTOCOLS.OPENAI_IMAGES)) return PROTOCOLS.OPENAI_IMAGES;
     if (lowerProvider.includes('moyu.info') && imageApiProfiles.isGeminiImageModel(model)) return PROTOCOLS.OPENAI_IMAGES;
     if (imageApiProfiles.isGeminiImageModel(model) && advertised.includes(PROTOCOLS.GEMINI_NATIVE)) {
@@ -78,6 +82,8 @@ function inferProtocol(provider = {}, model = '') {
     if (imageApiProfiles.isOpenAIImageModel(model)
         || imageApiProfiles.isXAIImageModel(model)
         || imageApiProfiles.isMinimaxImageModel(model)
+        || imageApiProfiles.isSeedreamImageModel(model)
+        || photontideImage.isQwenImageModel(model)
         || lowerModel.includes('seedream')) return PROTOCOLS.OPENAI_IMAGES;
     if (lowerProvider.includes('generativelanguage.googleapis.com')) return PROTOCOLS.GEMINI_NATIVE;
     if (advertised.length > 0) return advertised[0];
