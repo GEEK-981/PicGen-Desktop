@@ -37,8 +37,9 @@ test('recognises Doubao Seedream 5.5 across Ark, BytePlus and Photontide model s
         assert.deepEqual(profile.outputFormatOptions.map(item => item.value), ['', 'image/png', 'image/jpeg']);
     }
 
-    // Seedream 5.0 Lite / Pro / 4.5 / 4.0 and Seedance video models stay distinct.
+    // Seedream 5.0 Lite / Flash / Pro / 4.5 / 4.0 and Seedance video models stay distinct.
     assert.equal(profiles.seedreamImageFamily('doubao_seedream_5_0_pro_260628'), 'seedream-5.0-pro');
+    assert.equal(profiles.seedreamImageFamily('doubao-seedream-5-0-flash-260915'), 'seedream-5.0-flash');
     assert.equal(profiles.seedreamImageFamily('doubao-seedream-5-0-260128'), 'seedream-5.0');
     assert.equal(profiles.seedreamImageFamily('doubao-seedream-4-5-251128'), 'seedream-4.5');
     assert.equal(profiles.seedreamImageFamily('doubao-seedream-4-0-250828'), 'seedream-4.0');
@@ -197,7 +198,7 @@ test('recognises Photontide (光脉) hosts and formats Seedream, GPT Image, Nano
     assert.equal(photontide.shouldUse('https://ai.photontide.cn', 'gemini-3-pro-image-preview', 'gemini-native'), false);
     assert.equal(photontide.shouldUse('https://ai.photontide.cn', 'gpt-image-2', 'openai-chat'), false);
 
-    // Seedream 5.5 on Photontide: /v1/images/generations, public HTTP URL in `image`, no `stream` field.
+    // Seedream 5.5 on Photontide: /v1/images/generations, multi-ref goes in `images` (not `image` array!), single-ref goes in `image`.
     const seedreamReq = _test.buildPhotontideImageRequest({
         model: 'doubao_seedream_5_5_261028',
         prompt: 'edit painting',
@@ -205,7 +206,7 @@ test('recognises Photontide (光脉) hosts and formats Seedream, GPT Image, Nano
         ratio: '4:3',
         imageSize: '2K',
         referenceUrls: ['https://img.example/1.png', 'https://img.example/2.png'],
-        generationConfig: { gptBackground: 'opaque', outputMimeType: 'image/jpeg' }
+        generationConfig: { gptBackground: 'opaque', outputMimeType: 'image/jpeg', responseFormat: 'b64_json' }
     });
     assert.equal(seedreamReq.endpoint, 'generations');
     assert.deepEqual(seedreamReq.body, {
@@ -214,10 +215,20 @@ test('recognises Photontide (光脉) hosts and formats Seedream, GPT Image, Nano
         size: '2K',
         output_format: 'jpeg',
         background: 'opaque',
-        image: ['https://img.example/1.png', 'https://img.example/2.png'],
+        images: ['https://img.example/1.png', 'https://img.example/2.png'],
         response_format: 'url',
         watermark: false
     });
+    const seedreamSingleReq = _test.buildPhotontideImageRequest({
+        model: 'doubao_seedream_5_5_261028',
+        prompt: 'single edit',
+        effectivePrompt: 'single edit',
+        ratio: '1:1',
+        imageSize: '2K',
+        referenceUrls: ['https://img.example/1.png']
+    });
+    assert.equal(seedreamSingleReq.body.image, 'https://img.example/1.png');
+    assert.equal('images' in seedreamSingleReq.body, false);
 
     // GPT Image on Photontide: stays on /v1/images/generations JSON (never multipart /edits), clamps xhigh -> high, puts refs in `images`.
     const gptReq = _test.buildPhotontideImageRequest({
@@ -368,4 +379,35 @@ test('generateImage uploads base64 references to public HTTP URLs before calling
     assert.equal(capturedConfig.maskImage, null, 'Photontide does not receive a native mask');
     assert.equal(capturedConfig.referenceImages.length, 2, 'source image + red painted guide image');
     assert.equal(capturedConfig.ratio, '1:1');
+
+    // Oversized (>1.5 MB) opaque PNG references are compacted to JPEG before upload, while RGBA stays PNG.
+    const gradientRgb = Buffer.alloc(1200 * 1200 * 3);
+    for (let y = 0; y < 1200; y += 1) {
+        for (let x = 0; x < 1200; x += 1) {
+            const o = (y * 1200 + x) * 3;
+            gradientRgb[o] = x & 255;
+            gradientRgb[o + 1] = y & 255;
+            gradientRgb[o + 2] = (x + y) & 255;
+        }
+    }
+    const bigOpaquePng = await sharp(gradientRgb, { raw: { width: 1200, height: 1200, channels: 3 } }).png({ compressionLevel: 0 }).toBuffer();
+    assert.ok(bigOpaquePng.length > 1.5 * 1024 * 1024);
+
+    let uploadedRef = null;
+    await _test.generatePhotontideImage({
+        provider: `http://127.0.0.1:${port}/v1`,
+        apiKey: 'pt-test-key',
+        model: 'doubao_seedream_5_5_261028',
+        prompt: 'edit big ref',
+        ratio: '1:1',
+        imageSize: '1K',
+        referenceImages: [{ base64: bigOpaquePng.toString('base64'), mimeType: 'image/png' }]
+    }, {
+        uploadReference: async (ref) => {
+            uploadedRef = ref;
+            return 'https://cdn.example/compacted.jpg';
+        }
+    });
+    assert.equal(uploadedRef.mimeType, 'image/jpeg');
+    assert.ok(Buffer.from(uploadedRef.base64, 'base64').length < bigOpaquePng.length / 2);
 });

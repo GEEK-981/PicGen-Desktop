@@ -34,6 +34,10 @@ const imageApiProfiles = require('../imageApiProfiles');
 const doubaoSeedream = require('./doubaoSeedream');
 
 const PROVIDER_KIND = 'photontide-image';
+// Photontide holds the HTTP connection open synchronously while upstream Lumi / Seedream
+// finishes (multi-reference 2K edits can exceed 4 minutes under queue load); aborting early
+// only orphans an already-billed generation.
+const TIMEOUT_MS = 10 * 60 * 1000;
 
 function normalizeBaseUrl(value = '') {
     return String(value || '').trim().replace(/\/+$/, '')
@@ -169,9 +173,17 @@ function buildRequest({
             ratio,
             imageSize,
             referenceUrls: urls,
-            generationConfig,
+            generationConfig: { ...generationConfig, responseFormat: 'url' },
             includeStream: false
         });
+        // Photontide `/v1/images/generations` unified schema defines `image` as a single
+        // string URL (also required by `layer_decomposition: true`) and `images` as `string[]`
+        // for multi-reference inputs. Passing an array in `image` fails Photontide's Go type
+        // assertion (`req.Image.(string)`) with `400 - image must be a public HTTP URL`.
+        if (urls.length > 1) {
+            delete built.body.image;
+            built.body.images = urls.slice();
+        }
         return {
             endpoint: 'generations',
             family,
@@ -232,17 +244,13 @@ function buildRequest({
             : String(ratio || '1:1').trim();
         const normalizedSize = normalizeNanoBananaSize(imageSize);
         const n = Math.max(1, Math.min(10, Math.trunc(Number(generationConfig.n) || 1)));
-        const responseFormat = String(generationConfig.responseFormat || 'url').trim();
-        if (!['url', 'b64_json'].includes(responseFormat)) {
-            throw new Error(`光脉不支持的图片响应格式: ${responseFormat}`);
-        }
         const body = {
             model: String(model || '').trim(),
             prompt: String(effectivePrompt || prompt || '').trim(),
             aspectRatio,
             imageSize: normalizedSize,
             n,
-            response_format: responseFormat
+            response_format: 'url'
         };
         if (generationConfig.watermark != null) body.watermark = !!generationConfig.watermark;
         if (urls.length > 0) body.images = urls.slice();
@@ -259,20 +267,13 @@ function buildRequest({
         ? resolveOpenAISize(ratio, model, generationConfig, imageSize)
         : '1024x1024';
     const n = Math.max(1, Math.min(10, Math.trunc(Number(generationConfig.n) || 1)));
-    const openAIFamily = imageApiProfiles.openAIImageFamily(model);
-    const rawResponseFormat = String(generationConfig.responseFormat || 'url').trim();
-    if (!['url', 'b64_json'].includes(rawResponseFormat)) {
-        throw new Error(`光脉不支持的图片响应格式: ${rawResponseFormat}`);
-    }
-    // Photontide docs: `gpt-image-2 仅支持 url，未填写时默认 url`.
-    const responseFormat = openAIFamily === 'gpt-image-2' ? 'url' : rawResponseFormat;
-
+    // Photontide gateway docs: under gateway persistence & response size limits, always use `url`.
     const body = {
         model: String(model || '').trim(),
         prompt: String(effectivePrompt || prompt || '').trim(),
         size,
         n,
-        response_format: responseFormat,
+        response_format: 'url',
         watermark: generationConfig.watermark != null ? !!generationConfig.watermark : false
     };
 
@@ -309,6 +310,7 @@ function errorMessage(payload = {}) {
 
 module.exports = {
     PROVIDER_KIND,
+    TIMEOUT_MS,
     normalizeBaseUrl,
     isPhotontideProvider,
     endpointUrl,

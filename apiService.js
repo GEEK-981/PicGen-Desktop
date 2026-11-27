@@ -1828,20 +1828,62 @@ async function generateToapisImage(config, callbacks = {}) {
     }
 }
 
+const PHOTONTIDE_REF_COMPACT_BYTES = 1.5 * 1024 * 1024;
+const PHOTONTIDE_REF_MAX_EDGE = 2560;
+
+// Photontide's Hangzhou gateway fetches reference URLs from overseas image hosts;
+// raw 10–20 MB 4K PNGs can stall upstream fetches for 3–4 minutes. Opaque large
+// references are compacted to 4:4:4 JPEG (<=2560px) while true RGBA stays PNG.
+async function compactReferenceForPhotontide(base64, mimeType) {
+    const rawBuffer = Buffer.from(base64, 'base64');
+    if (rawBuffer.length <= PHOTONTIDE_REF_COMPACT_BYTES) {
+        return { base64, mimeType };
+    }
+    try {
+        const sharp = require('sharp');
+        const image = sharp(rawBuffer, { limitInputPixels: 64000000 });
+        const meta = await image.metadata();
+        let hasTransparentPixel = false;
+        if (meta.hasAlpha) {
+            const alpha = await sharp(rawBuffer, { limitInputPixels: 64000000 }).extractChannel('alpha').raw().toBuffer();
+            for (let i = 0; i < alpha.length; i += 1) {
+                if (alpha[i] < 255) { hasTransparentPixel = true; break; }
+            }
+        }
+        const resized = sharp(rawBuffer, { limitInputPixels: 64000000 })
+            .rotate()
+            .resize({ width: PHOTONTIDE_REF_MAX_EDGE, height: PHOTONTIDE_REF_MAX_EDGE, fit: 'inside', withoutEnlargement: true });
+        if (hasTransparentPixel) {
+            const out = await resized.png({ compressionLevel: 9 }).toBuffer();
+            return { base64: out.toString('base64'), mimeType: 'image/png' };
+        }
+        const out = await resized.jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
+        return out.length < rawBuffer.length
+            ? { base64: out.toString('base64'), mimeType: 'image/jpeg' }
+            : { base64, mimeType };
+    } catch {
+        return { base64, mimeType };
+    }
+}
+
 // 光脉（Photontide）同步图片生成入口：参考图必须先转为公网 HTTP(S) URL（Seedream 渠道传 Data URI
 // 会直接返回 400 `image must be a public HTTP URL`，且光脉自身未实现 /v1/files 上传接口）。
 // 图床上传在付费生成前执行，可安全重试；一旦 POST /v1/images/generations 发出则绝不自动重提。
 async function uploadPhotontideReference(ref, callbacks = {}, signal) {
     if (typeof ref === 'string' && /^https?:\/\//i.test(ref.trim())) return ref.trim();
     if (ref?.url && /^https?:\/\//i.test(String(ref.url).trim())) return String(ref.url).trim();
+    const rawBase64 = String(ref?.base64 || '').replace(/^data:[^,]+,/, '');
+    const rawMimeType = String(ref?.mimeType || 'image/png').split(';')[0].trim().toLowerCase() || 'image/png';
+    const compacted = rawBase64
+        ? await compactReferenceForPhotontide(rawBase64, rawMimeType)
+        : { base64: rawBase64, mimeType: rawMimeType };
     if (typeof callbacks.uploadReference === 'function') {
-        const uploaded = await callbacks.uploadReference(ref, { signal });
+        const uploaded = await callbacks.uploadReference({ ...ref, ...compacted }, { signal });
         const url = typeof uploaded === 'string' ? uploaded : uploaded?.url;
         if (!url || !/^https?:\/\//i.test(url)) throw new Error('光脉参考图上传返回地址无效');
         return url;
     }
-    const base64 = String(ref?.base64 || '').replace(/^data:[^,]+,/, '');
-    const mimeType = String(ref?.mimeType || 'image/png').split(';')[0].trim().toLowerCase() || 'image/png';
+    const { base64, mimeType } = compacted;
     let lastError = null;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
         throwIfAborted(signal);
@@ -1894,7 +1936,7 @@ async function generatePhotontideImage(config, callbacks = {}) {
     const signal = controller.signal;
     let didTimeout = false;
     let submitted = false;
-    const timeoutMs = API_CONFIG.OPENAI_IMAGE_TIMEOUT;
+    const timeoutMs = photontideImage.TIMEOUT_MS;
     let timeoutId = null;
 
     try {

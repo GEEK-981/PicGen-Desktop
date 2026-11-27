@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.26</b></a>
+  <a href="https://github.com/GEEK-981/PicGen-Desktop/releases/latest"><b>下载最新版 2.3.27</b></a>
   ·
   <a href="#使用说明">使用说明</a>
   ·
@@ -33,7 +33,7 @@ PicGen 是一个常驻桌面的生图小窗：平时缩成屏幕边上的一个�
 
 ## 下载安装
 
-1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.26-x64.exe`。
+1. 打开 [Releases 页面](https://github.com/GEEK-981/PicGen-Desktop/releases/latest)，下载 `PicGen-2.3.27-x64.exe`。
 2. 这是**便携版**，不用安装，双击就能运行。系统要求 Windows 10 / 11 64 位。
 3. 第一次运行会在 exe 旁边创建 `PicGenData` 文件夹，里面是你的供应商配置、历史图片和加密密钥用的环境。**换电脑或换位置时，把 exe 和 `PicGenData` 整个文件夹一起搬走**，配置和历史就都还在。
 4. Windows 可能提示"已保护你的电脑"（因为没有代码签名），点"更多信息 → 仍要运行"即可。
@@ -374,6 +374,10 @@ PicGen 按模型名判断协议和能力。请确认模型名和供应商文档�
 
 **我的图片和 Key 会被上传吗？**
 不会。PicGen 只请求你自己配置的接口地址；相似图分析用的是内置在软件里的本地模型。
+
+## 2.3.27 更新内容
+
+- **修复光脉（Photontide）多张参考图报错与大图拉取超时**：光脉统一生图接口传入 2 张及以上参考图时改用顶层 `images` 字符串数组（单张仍用 `image` 字符串），修复此前多图放在 `image` 数组里被网关拒绝报 `400 image must be a public HTTP URL` 的问题；同时对超过 1.5MB 的无透明大图自动压缩至 `2560px` 高画质 JPEG 再上传（带透明像素的参考图仍保留 PNG），并将光脉同步等待上限放宽至 10 分钟，解决国内网关拉取超大 4K 参考图缓慢导致的超时。
 
 ## 2.3.26 更新内容
 

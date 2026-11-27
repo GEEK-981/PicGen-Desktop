@@ -39,6 +39,7 @@ function seedreamFamily(model = '') {
     if (!key.includes('seedream')) return '';
     if (key.includes('seedream55')) return 'seedream-5.5';
     if ((key.includes('seedream50') || key.includes('seedream5')) && key.includes('pro')) return 'seedream-5.0-pro';
+    if ((key.includes('seedream50') || key.includes('seedream5')) && key.includes('flash')) return 'seedream-5.0-flash';
     if (key.includes('seedream50') || key.includes('seedream5')) return 'seedream-5.0';
     if (key.includes('seedream45')) return 'seedream-4.5';
     return 'seedream-4.0';
@@ -54,12 +55,15 @@ function isSeedream50ProModel(model = '') {
 
 function isSeedream5Family(model = '') {
     const family = seedreamFamily(model);
-    return family === 'seedream-5.5' || family === 'seedream-5.0-pro' || family === 'seedream-5.0';
+    return family === 'seedream-5.5'
+        || family === 'seedream-5.0-pro'
+        || family === 'seedream-5.0-flash'
+        || family === 'seedream-5.0';
 }
 
 function capabilities(model = '') {
     const family = seedreamFamily(model) || 'seedream-4.0';
-    if (family === 'seedream-5.5' || family === 'seedream-5.0-pro') {
+    if (family === 'seedream-5.5' || family === 'seedream-5.0-pro' || family === 'seedream-5.0-flash') {
         return {
             family,
             ratios: SEEDREAM_RATIOS,
